@@ -155,9 +155,53 @@ async function obterFichaPorId(id) {
     return await api_get_id('fichas_termo/', id);
 }
 
-// Função para obter itens de uma ficha
+// Função para obter itens de uma ficha - COM CORREÇÃO PARA O ARRAY
 async function obterItensFicha(fichaId) {
-    return await api_get_id('fichas_termo_itens/ficha/', fichaId);
+    const resposta = await api_get_id('fichas_termo_itens/ficha/', fichaId);
+    return transformarRespostaEmArray(resposta);
+}
+
+// Função auxiliar para transformar resposta em array
+function transformarRespostaEmArray(resposta) {
+    if (Array.isArray(resposta)) {
+        return resposta;
+    }
+    
+    if (typeof resposta === 'object' && resposta !== null) {
+        // Tenta extrair array de diferentes formatos de resposta
+        if (resposta.data && Array.isArray(resposta.data)) {
+            return resposta.data;
+        }
+        if (resposta.itens && Array.isArray(resposta.itens)) {
+            return resposta.itens;
+        }
+        if (resposta.result && Array.isArray(resposta.result)) {
+            return resposta.result;
+        }
+        if (resposta.items && Array.isArray(resposta.items)) {
+            return resposta.items;
+        }
+        if (resposta.ficha_itens && Array.isArray(resposta.ficha_itens)) {
+            return resposta.ficha_itens;
+        }
+        
+        // Se for um objeto, converte seus valores em array
+        const valores = Object.values(resposta);
+        if (valores.length > 0 && valores.every(v => typeof v === 'object' && v !== null)) {
+            return valores;
+        }
+        
+        // Se tiver uma única propriedade que é um array
+        for (const key in resposta) {
+            if (Array.isArray(resposta[key])) {
+                return resposta[key];
+            }
+        }
+    }
+    
+    // Se nada funcionar, retorna array vazio
+    console.warn('Não foi possível extrair array da resposta:', resposta);
+    return [];
 }
 
 // Função para excluir ficha e seus itens
@@ -181,16 +225,22 @@ async function excluirFichaCompleta(codigo) {
     return await api_delete('fichas_termo/', codigo);
 }
 
-// Função para exportar fichas para PDF
+// Função para exportar fichas para PDF - COM CORREÇÃO
 async function exportarFichasParaPDF(fichasIds) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     let pageCount = 0;
+    let fichasProcessadas = 0;
 
     for (const fichaId of fichasIds) {
         try {
             const ficha = await obterFichaPorId(fichaId);
             const itens = await obterItensFicha(fichaId);
+
+            if (!Array.isArray(itens)) {
+                console.warn(`Itens da ficha ${fichaId} não é um array:`, itens);
+                continue;
+            }
 
             if (pageCount > 0) doc.addPage();
 
@@ -204,29 +254,37 @@ async function exportarFichasParaPDF(fichasIds) {
             doc.setFontSize(12);
             doc.text(nomeFicha, margin, margin + 15);
 
-            const tableData = itens.map(item => [
-                item.numero_ordem || '',
-                item.campo_nome || '',
-                item.campo_valor || ''
-            ]);
+            // Verifica se há itens para exibir
+            if (itens.length > 0) {
+                const tableData = itens.map(item => [
+                    item.numero_ordem || item.ordem || item.numero || '',
+                    item.campo_nome || item.nome_campo || item.campo || '',
+                    item.campo_valor || item.valor_campo || item.valor || ''
+                ]);
 
-            doc.autoTable({
-                startY: margin + 20,
-                head: [['Ordem', 'Campo', 'Valor']],
-                body: tableData,
-                margin: { left: margin, right: margin },
-                styles: { fontSize: 8 },
-                headStyles: { fillColor: [66, 139, 202] }
-            });
+                doc.autoTable({
+                    startY: margin + 20,
+                    head: [['Ordem', 'Campo', 'Valor']],
+                    body: tableData,
+                    margin: { left: margin, right: margin },
+                    styles: { fontSize: 8 },
+                    headStyles: { fillColor: [66, 139, 202] }
+                });
+            } else {
+                doc.setFontSize(11);
+                doc.setFont('helvetica', 'italic');
+                doc.text("Nenhum item cadastrado nesta ficha", margin, margin + 25);
+            }
 
             pageCount++;
+            fichasProcessadas++;
         } catch (error) {
             console.error(`Erro ao processar ficha ${fichaId}:`, error);
             continue;
         }
     }
 
-    if (pageCount > 0) {
+    if (fichasProcessadas > 0) {
         doc.save(`fichas_exportadas_${new Date().toISOString().split('T')[0]}.pdf`);
         return true;
     } else {
@@ -234,20 +292,25 @@ async function exportarFichasParaPDF(fichasIds) {
     }
 }
 
-// Função para exportar glossário para PDF
+// Função para exportar glossário para PDF - COM CORREÇÃO
 async function exportarGlossarioParaPDF(fichasIds) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     const margin = 10;
     let currentY = margin;
-    let fichaCount = 0;
+    let fichasProcessadas = 0;
 
     for (const fichaId of fichasIds) {
         try {
             const ficha = await obterFichaPorId(fichaId);
             const itens = await obterItensFicha(fichaId);
 
-            if (fichaCount > 0) {
+            if (!Array.isArray(itens)) {
+                console.warn(`Itens da ficha ${fichaId} não é um array para glossário:`, itens);
+                continue;
+            }
+
+            if (fichasProcessadas > 0) {
                 doc.addPage();
                 currentY = margin;
             }
@@ -270,24 +333,29 @@ async function exportarGlossarioParaPDF(fichasIds) {
             doc.text(glossarioText, glossarioX, currentY);
             currentY += 15;
 
-            const valores = itens
-                .filter(item => item.campo_valor && item.campo_valor.trim() !== '')
-                .map(item => item.campo_valor.trim())
-                .filter((valor, index, self) => self.indexOf(valor) === index);
+            // Filtra e processa os valores
+            let valores = [];
+            if (Array.isArray(itens) && itens.length > 0) {
+                valores = itens
+                    .filter(item => item && item.campo_valor && item.campo_valor.toString().trim() !== '')
+                    .map(item => item.campo_valor.toString().trim())
+                    .filter((valor, index, self) => self.indexOf(valor) === index);
+            }
 
             if (valores.length > 0) {
                 const textoGlossario = valores.join('. ');
                 doc.setFontSize(11);
                 doc.setFont('helvetica', 'normal');
                 const lines = doc.splitTextToSize(textoGlossario, doc.internal.pageSize.getWidth() - 40);
-                lines.forEach((line, index) => {
+                
+                for (const line of lines) {
                     if (currentY > doc.internal.pageSize.getHeight() - margin) {
                         doc.addPage();
                         currentY = margin;
                     }
                     doc.text(line, margin, currentY);
                     currentY += 7;
-                });
+                }
             } else {
                 doc.setFontSize(11);
                 doc.setFont('helvetica', 'italic');
@@ -298,14 +366,15 @@ async function exportarGlossarioParaPDF(fichasIds) {
                 currentY += 10;
             }
 
-            fichaCount++;
+            fichasProcessadas++;
+            currentY += 10; // Espaço entre fichas
         } catch (error) {
             console.error(`Erro ao processar ficha ${fichaId} para glossário:`, error);
             continue;
         }
     }
 
-    if (fichaCount > 0) {
+    if (fichasProcessadas > 0) {
         doc.save(`glossario_fichas_${new Date().toISOString().split('T')[0]}.pdf`);
         return true;
     } else {
