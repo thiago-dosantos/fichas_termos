@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Fichas</title>
+    
+    <!-- SweetAlert2 CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
+    
+    <!-- jsPDF -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #eee;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 24px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-novo, .btn-exportar {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+
+        .btn-exportar {
+            background-color: #28a745;
+        }
+
+        .btn-novo:hover {
+            background-color: #0056b3;
+        }
+
+        .btn-exportar:hover {
+            background-color: #218838;
+        }
+
+        .btn-exportar:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .btn-exportar-glossario {
+            background-color: #6f42c1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            transition: background-color 0.3s;
+        }
+
+        .btn-exportar-glossario:hover {
+            background-color: #59359a;
+        }
+
+        .btn-exportar-glossario:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        th, td {
+            padding: 12px 15px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f8f9fa;
+            font-weight: bold;
+            color: #333;
+        }
+
+        tr:hover {
+            background-color: #f8f9fa;
+        }
+
+        .checkbox-cell {
+            width: 40px;
+            text-align: center;
+        }
+
+        .acoes-cell {
+            width: 150px;
+        }
+
+        .btn-acao {
+            padding: 5px 10px;
+            margin: 0 2px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-editar {
+            background-color: #28a745;
+            color: white;
+        }
+
+        .btn-excluir {
+            background-color: #dc3545;
+            color: white;
+        }
+
+        .btn-editar:hover {
+            background-color: #218838;
+        }
+
+        .btn-excluir:hover {
+            background-color: #c82333;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #007bff;
+        }
+
+        .error {
+            text-align: center;
+            padding: 20px;
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Gerenciador de Fichas</h1>
+            <div class="btn-group">
+                <button id="btnExportar" class="btn-exportar" disabled>Exportar Ficha</button>
+                <button id="btnExportarGlossario" class="btn-exportar-glossario" disabled>Exportar Glossário</button>
+                <a href="novo.html" class="btn-novo">Nova Ficha</a>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="tabelaFichas">
+                <thead>
+                    <tr>
+                        <th class="checkbox-cell">
+                            <input type="checkbox" id="selectAll">
+                        </th>
+                        <th>ID</th>
+                        <th>Nome da Ficha</th>
+                        <th>Data de Criação</th>
+                        <th class="acoes-cell">Ações</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyFichas">
+                    <!-- As fichas serão inseridas aqui via JavaScript -->
+                </tbody>
+            </table>
+            <div id="loadingState" class="loading">
+                <p>Carregando fichas...</p>
+            </div>
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <p>Nenhuma ficha cadastrada. Clique em "Nova Ficha" para começar.</p>
+            </div>
+            <div id="errorState" class="error" style="display: none;">
+                <p id="errorMessage">Erro ao carregar fichas.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script type="module">
+        // Configuração da API
+        const API_CONFIG = {
+            url: 'https://tagliari.ngrok.app',
+            token: '17e721a855359a664c490ebac.69afb23afc3ffcf250bc463d3'
+        };
+
+        // Função para obter o token JWT
+        function getAccessToken() {
+            // Tente obter do localStorage
+            const token = localStorage.getItem('x-access-token') || 
+                         localStorage.getItem('jwt_token') || 
+                         localStorage.getItem('token') ||
+                         sessionStorage.getItem('x-access-token') ||
+                         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2RpZ28iOjEsInRpcG8iOiJWIiwibm9tZSI6IlhLRVlTVEkiLCJhcGVsaWRvIjoiWEtFWVNUSSIsImRhdGFfbmFzYyI6IjAwMDAtMDAtMDAiLCJlbmRlcmVjbyI6IkFWRU5JREEgQlJBU0lMIiwibnVtZXJvIjoiMjg0IiwiY29tcGxlbWVudG8iOiJTQUxBIDA3IC8gMTAgIiwiYmFpcnJvIjoiIiwiY2lkYWRlIjoiTUFSSU5Hw4EiLCJlc3RhZG8iOiJQUiIsImNlcCI6Ijg3MDUwLTAwMCIsInRlbGVmb25lIjoiKDQ0KTAzMDI2LTAwMzgiLCJjZWx1bGFyIjoiIiwiZW1haWwiOiIiLCJjcGYiOiIiLCJyZyI6IiIsImNvZF9jaWRhZGVfaWJnZSI6MCwiY29kX3BhaXNfaWJnZSI6IjEwNTgiLCJzZW5oYSI6IiIsImF0aXZvIjoiUyIsImFjZXNzbyI6IlMiLCJzdXBlcnZpc29yIjoiUyIsImNvbWlzc2lvbmFkbyI6IlMiLCJkYXRhX2NhZGFzdHJvIjoiMDAwMC0wMC0wMCIsImRhdGFfYXRpdmFjYW8iOiIwMDAwLTAwLTAwIiwiaWRpb21hX3Npc3RlbWEiOiJQT1JUVUdVRVNfQlJBU0lMIiwiY2VudHJvX2N1c3RvIjowLCJzZXRvciI6MCwidGlwb19wZWRpZG8iOm51bGwsImdydXBvX3VzdWFyaW9faWQiOm51bGwsImRlcGFydGFtZW50b19pZCI6bnVsbCwib2JzZXJ2YWNvZXMiOnsidHlwZSI6IkJ1ZmZlciIsImRhdGEiOltdfSwiZm90b19wZXJmaWwiOm51bGwsImlhdCI6MTc2MDk2ODAyNH0.KW-z9sQV1xz4pL2Sq2xhsuug9epRUlkqoXyji6ljpbk';
+            
+            return token;
+        }
+
+        // Headers para as requisições
+        function getHeaders() {
+            return {
+                'Content-Type': 'application/json',
+                'x-access-token': getAccessToken(),
+                'token-api-sax': API_CONFIG.token
+            };
+        }
+
+        // Import das funções da API
+        import { api_get } from './api/get.js';
+
+        // Elementos DOM
+        const tabelaBody = document.getElementById('tbodyFichas');
+        const loadingState = document.getElementById('loadingState');
+        const emptyState = document.getElementById('emptyState');
+        const errorState = document.getElementById('errorState');
+        const errorMessage = document.getElementById('errorMessage');
+        const selectAll = document.getElementById('selectAll');
+        const btnExportar = document.getElementById('btnExportar');
+        const btnExportarGlossario = document.getElementById('btnExportarGlossario');
+
+        // Inicializa a tabela
+        async function inicializarTabela() {
+            await carregarFichas();
+            atualizarTodosBotoesExportar();
+        }
+
+        // Carrega as fichas da API
+        async function carregarFichas() {
+            try {
+                mostrarLoading();
+                
+                const headers = getHeaders();
+                
+                // Passar a configuração para a função api_get
+                const response = await api_get('fichas_termo', {}, API_CONFIG.url, headers);
+                
+                if (typeof response === 'string' && response.includes('HTTP error')) {
+                    throw new Error(response);
+                }
+                
+                // Extrai o array de fichas da resposta
+                const fichas = extrairFichasDaResposta(response);
+                
+                renderizarTabela(fichas);
+                
+            } catch (error) {
+                console.error('Erro ao carregar fichas:', error);
+                mostrarErro('Erro ao carregar fichas: ' + error.message);
+            }
+        }
+
+        // Função para extrair o array de fichas da resposta da API
+        function extrairFichasDaResposta(response) {
+            // Se a resposta já é um array, retorna diretamente
+            if (Array.isArray(response)) {
+                return response;
+            }
+            
+            // Se a resposta é um objeto, tenta extrair o array de propriedades comuns
+            if (typeof response === 'object' && response !== null) {
+                // Tenta encontrar um array nas propriedades mais comuns
+                if (response.data && Array.isArray(response.data)) {
+                    return response.data;
+                }
+                if (response.fichas && Array.isArray(response.fichas)) {
+                    return response.fichas;
+                }
+                if (response.result && Array.isArray(response.result)) {
+                    return response.result;
+                }
+                if (response.items && Array.isArray(response.items)) {
+                    return response.items;
+                }
+                
+                // Se não encontrou um array específico, tenta extrair todos os valores que são objetos
+                const arrayFromObject = Object.values(response).filter(item => 
+                    typeof item === 'object' && item !== null
+                );
+                if (arrayFromObject.length > 0) {
+                    return arrayFromObject;
+                }
+            }
+            
+            // Se não conseguiu extrair um array, retorna array vazio
+            console.warn('Não foi possível extrair array de fichas da resposta:', response);
+            return [];
+        }
+
+        // Renderiza a tabela com as fichas
+        function renderizarTabela(fichas) {
+            if (!fichas || !Array.isArray(fichas) || fichas.length === 0) {
+                mostrarEmptyState();
+                return;
+            }
+
+            esconderEstados();
+            tabelaBody.innerHTML = '';
+            
+            fichas.forEach((ficha) => {
+                const tr = document.createElement('tr');
+                const dataCriacao = ficha.data_criacao 
+                    ? new Date(ficha.data_criacao).toLocaleDateString('pt-BR')
+                    : 'N/A';
+                
+                // Tenta diferentes campos de ID
+                const fichaId = ficha.id || ficha.codigo || ficha.ID || ficha.CODIGO;
+                
+                tr.innerHTML = `
+                    <td class="checkbox-cell">
+                        <input type="checkbox" class="row-checkbox" data-id="${fichaId}" onchange="atualizarTodosBotoesExportar()">
+                    </td>
+                    <td>${fichaId || 'N/A'}</td>
+                    <td>${ficha.nome_ficha || ficha.nome || 'Sem nome'}</td>
+                    <td>${dataCriacao}</td>
+                    <td class="acoes-cell">
+                        <a href="editar.html?id=${fichaId}" class="btn-acao btn-editar">Editar</a>
+                        <button class="btn-acao btn-excluir" onclick="excluirFicha(${fichaId})">Excluir</button>
+                    </td>
+                `;
+                tabelaBody.appendChild(tr);
+            });
+        }
+
+        // Atualiza o estado do botão exportar
+        function atualizarBotaoExportar() {
+            const checkboxesSelecionados = document.querySelectorAll('.row-checkbox:checked');
+            btnExportar.disabled = checkboxesSelecionados.length === 0;
+        }
+
+        // Atualiza o estado do botão exportar glossário
+        function atualizarBotaoExportarGlossario() {
+            const checkboxesSelecionados = document.querySelectorAll('.row-checkbox:checked');
+            btnExportarGlossario.disabled = checkboxesSelecionados.length === 0;
+        }
+
+        // Atualiza todos os botões de exportação
+        function atualizarTodosBotoesExportar() {
+            atualizarBotaoExportar();
+            atualizarBotaoExportarGlossario();
+        }
+
+        // Exporta as fichas selecionadas para PDF
+        async function exportarFichasParaPDF() {
+            const checkboxesSelecionados = document.querySelectorAll('.row-checkbox:checked');
+            
+            if (checkboxesSelecionados.length === 0) {
+                await Swal.fire({
+                    title: 'Nenhuma ficha selecionada',
+                    text: 'Selecione pelo menos uma ficha para exportar.',
+                    icon: 'warning',
+                    confirmButtonColor: '#007bff'
+                });
+                return;
+            }
+
+            try {
+                // Mostra o loading
+                Swal.fire({
+                    title: 'Exportando...',
+                    text: 'Preparando o PDF com as fichas selecionadas',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                const headers = getHeaders();
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                // Obtem os IDs das fichas selecionadas
+                const fichasIds = Array.from(checkboxesSelecionados).map(checkbox => 
+                    checkbox.getAttribute('data-id')
+                );
+
+                let pageCount = 0;
+
+                for (let i = 0; i < fichasIds.length; i++) {
+                    const fichaId = fichasIds[i];
+                    
+                    // Busca os dados da ficha principal
+                    const fichaResponse = await api_get_id_adapted('fichas_termo/', fichaId, API_CONFIG.url, headers);
+                    const ficha = extrairFichasDaResposta(fichaResponse)[0] || fichaResponse;
+
+                    // Busca os itens da ficha
+                    const itensResponse = await api_get_id_adapted('fichas_termo_itens/ficha/', fichaId, API_CONFIG.url, headers);
+                    const itens = extrairFichasDaResposta(itensResponse);
+
+                    // Ordena os itens por numero_ordem
+                    itens.sort((a, b) => (a.numero_ordem || 0) - (b.numero_ordem || 0));
+
+                    // Adiciona a nova página se não for a primeira
+                    if (pageCount > 0) {
+                        doc.addPage();
+                    }
+
+                    // Configurações do PDF
+                    const margin = 10;
+                    const pageWidth = doc.internal.pageSize.getWidth();
+                    const contentWidth = pageWidth - (2 * margin);
+
+                    // Título da ficha
+                    const dominio = "Domínio: " + (ficha.dominio || 'Não informado');
+                    const nomeFicha = "Ficha: " + (ficha.nome_ficha || ficha.nome || 'Sem nome');
+
+                    doc.setFontSize(14);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(dominio, margin, margin + 10);
+                    
+                    doc.setFontSize(12);
+                    doc.text(nomeFicha, margin, margin + 15);
+
+                    // Preparar dados da tabela
+                    const tableData = itens.map(item => [
+                        item.numero_ordem || '',
+                        item.campo_nome || '',
+                        item.campo_valor || ''
+                    ]);
+
+                    // Adiciona a tabela
+                    doc.autoTable({
+                        startY: margin + 20,
+                        head: [['Ordem', 'Campo', 'Valor']],
+                        body: tableData,
+                        margin: { left: margin, right: margin },
+                        styles: { fontSize: 8 },
+                        headStyles: { fillColor: [66, 139, 202] }
+                    });
+
+                    pageCount++;
+                }
+
+                // Salva o PDF
+                doc.save(`fichas_exportadas_${new Date().toISOString().split('T')[0]}.pdf`);
+
+                // Fecha o loading
+                Swal.close();
+
+                await Swal.fire({
+                    title: 'Exportação concluída!',
+                    text: `PDF gerado com ${fichasIds.length} ficha(s) selecionada(s).`,
+                    icon: 'success',
+                    confirmButtonColor: '#28a745'
+                });
+
+            } catch (error) {
+                console.error('Erro ao exportar fichas:', error);
+                
+                Swal.close();
+                
+                await Swal.fire({
+                    title: 'Erro na exportação!',
+                    text: 'Ocorreu um erro ao gerar o PDF: ' + error.message,
+                    icon: 'error',
+                    confirmButtonColor: '#d33'
+                });
+            }
+        }
+
+        // Exporta o glossário das fichas selecionadas para PDF
+        async function exportarGlossarioParaPDF() {
+            const checkboxesSelecionados = document.querySelectorAll('.row-checkbox:checked');
+            
+            if (checkboxesSelecionados.length === 0) {
+                await Swal.fire({
+                    title: 'Nenhuma ficha selecionada',
+                    text: 'Selecione pelo menos uma ficha para exportar o glossário.',
+                    icon: 'warning',
+                    confirmButtonColor: '#007bff'
+                });
+                return;
+            }
+
+            try {
+                // Mostra o  loading
+                Swal.fire({
+                    title: 'Exportando Glossário...',
+                    text: 'Preparando o PDF com os valores das fichas selecionadas',
+                    allowOutsideClick: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+
+                const headers = getHeaders();
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF();
+
+                // Configurações do PDF
+                const margin = 10;
+                const pageWidth = doc.internal.pageSize.getWidth();
+                const contentWidth = pageWidth - (2 * margin);
+                let currentY = margin;
+
+                // Obtem os IDs das fichas selecionadas
+                const fichasIds = Array.from(checkboxesSelecionados).map(checkbox => 
+                    checkbox.getAttribute('data-id')
+                );
+
+                for (let i = 0; i < fichasIds.length; i++) {
+                    const fichaId = fichasIds[i];
+                    
+                    // Busca os dados da ficha principal
+                    const fichaResponse = await api_get_id_adapted('fichas_termo/', fichaId, API_CONFIG.url, headers);
+                    const ficha = extrairFichasDaResposta(fichaResponse)[0] || fichaResponse;
+
+                    // Busca os itens da ficha
+                    const itensResponse = await api_get_id_adapted('fichas_termo_itens/ficha/', fichaId, API_CONFIG.url, headers);
+                    const itens = extrairFichasDaResposta(itensResponse);
+
+                    // Adiciona a nova página se não for a primeira ficha
+                    if (i > 0) {
+                        doc.addPage();
+                        currentY = margin;
+                    }
+
+                    // Título: Domínio e Ficha (à esquerda)
+                    const dominio = ficha.dominio || 'Domínio não informado';
+                    const nomeFicha = ficha.nome_ficha || ficha.nome || 'Sem nome';
+
+                    doc.setFontSize(12);
+                    doc.setFont('helvetica', 'normal');
+                    
+                    // Domínio
+                    doc.text(`Domínio: ${dominio}`, margin, currentY);
+                    currentY += 8;
+                    
+                    // Ficha
+                    doc.text(`Ficha: ${nomeFicha}`, margin, currentY);
+                    currentY += 15;
+
+                    // Título "Glossário" centralizado
+                    doc.setFontSize(14);
+                    doc.setFont('helvetica', 'bold');
+                    
+                    const glossarioText = "Glossário";
+                    const glossarioWidth = doc.getTextWidth(glossarioText);
+                    const glossarioX = (pageWidth - glossarioWidth) / 2;
+                    
+                    doc.text(glossarioText, glossarioX, currentY);
+                    currentY += 15;
+
+                    // Extrai os valores da coluna "Valor" e juntar com ponto
+                    const valores = itens
+                        .filter(item => item.campo_valor && item.campo_valor.trim() !== '')
+                        .map(item => item.campo_valor.trim())
+                        .filter((valor, index, self) => self.indexOf(valor) === index); // Remove duplicatas
+
+                    if (valores.length > 0) {
+                        // Junta os valores com ponto e espaço
+                        const textoGlossario = valores.join('. ');
+                        
+                        // Configurar texto
+                        doc.setFontSize(11);
+                        doc.setFont('helvetica', 'normal');
+                        
+                        // Quebra o texto em linhas se necessário
+                        const lines = doc.splitTextToSize(textoGlossario, contentWidth - 20);
+                        
+                        // Calcula a posição X para centralizar
+                        const maxLineWidth = Math.max(...lines.map(line => doc.getTextWidth(line)));
+                        const textX = (pageWidth - maxLineWidth) / 2;
+                        
+                        // Adiciona o texto centralizado
+                        lines.forEach((line, index) => {
+                            if (currentY > doc.internal.pageSize.getHeight() - margin) {
+                                doc.addPage();
+                                currentY = margin;
+                            }
+                            doc.text(line, textX, currentY);
+                            currentY += 7;
+                        });
+                    } else {
+                        doc.setFontSize(11);
+                        doc.setFont('helvetica', 'italic');
+                        const semValoresText = "Nenhum valor encontrado para glossário";
+                        const semValoresWidth = doc.getTextWidth(semValoresText);
+                        const semValoresX = (pageWidth - semValoresWidth) / 2;
+                        doc.text(semValoresText, semValoresX, currentY);
+                        currentY += 10;
+                    }
+                }
+
+                // Salva o PDF
+                const dataAtual = new Date().toISOString().split('T')[0];
+                doc.save(`glossario_fichas_${dataAtual}.pdf`);
+
+                // Fecha o loading
+                Swal.close();
+
+                await Swal.fire({
+                    title: 'Glossário exportado!',
+                    text: `PDF gerado com ${fichasIds.length} ficha(s) selecionada(s).`,
+                    icon: 'success',
+                    confirmButtonColor: '#28a745'
+                });
+
+            } catch (error) {
+                console.error('Erro ao exportar glossário:', error);
+                
+                Swal.close();
+                
+                await Swal.fire({
+                    title: 'Erro na exportação!',
+                    text: 'Ocorreu um erro ao gerar o PDF do glossário: ' + error.message,
+                    icon: 'error',
+                    confirmButtonColor: '#d33'
+                });
+            }
+        }
+
+        // Exclui a ficha com todos os seus itens
+        async function excluirFicha(codigo) {
+            const result = await Swal.fire({
+                title: 'Tem certeza?',
+                text: "Esta ação irá excluir a ficha e todos os seus itens! Esta ação não pode ser revertida.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Sim, excluir tudo!',
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true
+            });
+
+            if (result.isConfirmed) {
+                try {
+                    const headers = getHeaders();
+                    
+                    // Mostra o loading durante a exclusão
+                    Swal.fire({
+                        title: 'Excluindo...',
+                        text: 'Removendo ficha e seus itens',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
+
+                    // Busca todos os itens da ficha
+                    const itensResponse = await api_get_id_adapted('fichas_termo_itens/ficha/', codigo, API_CONFIG.url, headers);
+                    const itens = extrairFichasDaResposta(itensResponse);
+
+                    // Exclui todos os itens da ficha
+                    if (itens && itens.length > 0) {
+                        for (const item of itens) {
+                            const itemId = item.id || item.codigo || item.ID || item.CODIGO;
+                            
+                            if (itemId) {
+                                await api_delete_adapted('fichas_termo_itens/', itemId, API_CONFIG.url, headers);
+                            }
+                        }
+                    } else {
+                        console.log('Nenhum item encontrado para excluir');
+                    }
+
+                    // Exclui a ficha principal
+                    const resultado = await api_delete_adapted('fichas_termo/', codigo, API_CONFIG.url, headers);
+                    
+                    if (typeof resultado === 'string' && resultado.includes('HTTP error')) {
+                        throw new Error(resultado);
+                    }
+                    
+                    // Fecha o loading e mostrar sucesso
+                    Swal.close();
+                    
+                    await Swal.fire({
+                        title: 'Excluído!',
+                        text: 'A ficha e todos os seus itens foram excluídos com sucesso.',
+                        icon: 'success',
+                        confirmButtonColor: '#28a745'
+                    });
+                    
+                    // Recarrega a lista de fichas
+                    await carregarFichas();
+                    
+                } catch (error) {
+                    console.error('Erro ao excluir ficha:', error);
+                    
+                    // Fecha o loading e mostrar erro
+                    Swal.close();
+                    
+                    await Swal.fire({
+                        title: 'Erro!',
+                        text: 'Erro ao excluir ficha: ' + error.message,
+                        icon: 'error',
+                        confirmButtonColor: '#d33'
+                    });
+                }
+            }
+        }
+
+        // Função adaptada para api_get_id que aceita parâmetros
+        async function api_get_id_adapted(endpoint, id, api_url, headers) {
+            const response = await fetch(api_url + endpoint + id, {
+                method: "get",
+                headers: headers
+            });
+            
+            if (response.ok) {
+                let json = await response.json();
+                return json;
+            } else {
+                return `HTTP error: ${response.status}`;
+            }
+        }
+
+        // Função adaptada para api_delete que aceita parâmetros
+        async function api_delete_adapted(endpoint, id, api_url, headers) {
+            try {
+                const response = await fetch(api_url + endpoint + id, {
+                    method: "delete",
+                    headers: headers
+                });
+
+                if (response.ok) {
+                    let json = await response.json();
+                    return json;
+                } else {
+                    return `HTTP error: ${response.status}`;
+                }
+            } catch (err) {
+                console.error(err);
+                return `Error: ${err.message}`;
+            }
+        }
+
+        // Funções para controlar estados da UI
+        function mostrarLoading() {
+            loadingState.style.display = 'block';
+            emptyState.style.display = 'none';
+            errorState.style.display = 'none';
+            tabelaBody.style.display = 'none';
+        }
+
+        function mostrarEmptyState() {
+            loadingState.style.display = 'none';
+            emptyState.style.display = 'block';
+            errorState.style.display = 'none';
+            tabelaBody.style.display = 'none';
+        }
+
+        function mostrarErro(mensagem) {
+            loadingState.style.display = 'none';
+            emptyState.style.display = 'none';
+            errorState.style.display = 'block';
+            errorMessage.textContent = mensagem;
+            tabelaBody.style.display = 'none';
+        }
+
+        function esconderEstados() {
+            loadingState.style.display = 'none';
+            emptyState.style.display = 'none';
+            errorState.style.display = 'none';
+            tabelaBody.style.display = 'table-row-group';
+        }
+
+        // Seleciona todos os checkboxes
+        selectAll.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.row-checkbox');
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+            });
+            atualizarTodosBotoesExportar();
+        });
+
+        // Torna as funções globais para os event listeners
+        window.excluirFicha = excluirFicha;
+        window.atualizarBotaoExportar = atualizarBotaoExportar;
+        window.atualizarBotaoExportarGlossario = atualizarBotaoExportarGlossario;
+        window.atualizarTodosBotoesExportar = atualizarTodosBotoesExportar;
+        window.exportarFichasParaPDF = exportarFichasParaPDF;
+        window.exportarGlossarioParaPDF = exportarGlossarioParaPDF;
+
+        // Adiciona os event listener ao botão exportar
+        btnExportar.addEventListener('click', exportarFichasParaPDF);
+
+        // Adiciona os event listener ao botão exportar glossário
+        btnExportarGlossario.addEventListener('click', exportarGlossarioParaPDF);
+
+        // Inicializa a aplicação
+        document.addEventListener('DOMContentLoaded', inicializarTabela);
+    </script>
+</body>
+</html>

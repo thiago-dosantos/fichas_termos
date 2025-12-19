@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Editar Ficha - Gerenciador</title>
+    <!-- SweetAlert2 CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: Arial, sans-serif;
+        background-color: #f5f5f5;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background-color: white;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        padding: 20px;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 20px;
+        padding-bottom: 15px;
+        border-bottom: 2px solid #eee;
+      }
+
+      h1 {
+        color: #333;
+        font-size: 24px;
+      }
+
+      .btn-voltar {
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        text-decoration: none;
+        display: inline-block;
+        transition: background-color 0.3s;
+      }
+
+      .btn-voltar:hover {
+        background-color: #545b62;
+      }
+
+      .btn-salvar {
+        background-color: #28a745;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 5px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.3s;
+      }
+
+      .btn-salvar:hover {
+        background-color: #218838;
+      }
+
+      .form-group {
+        margin-bottom: 20px;
+      }
+
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #333;
+      }
+
+      .form-group input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
+      }
+
+      .form-group input:disabled {
+        background-color: #f5f5f5;
+        color: #666;
+        cursor: not-allowed;
+      }
+
+      .table-container {
+        overflow-x: auto;
+        margin-top: 20px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        padding: 12px 15px;
+        text-align: left;
+        border: 1px solid #ddd;
+      }
+
+      th {
+        background-color: #f8f9fa;
+        font-weight: bold;
+        color: #333;
+      }
+
+      tr:hover {
+        background-color: #f8f9fa;
+      }
+
+      .coluna-editavel {
+        background-color: #fff;
+      }
+
+      .coluna-editavel:focus {
+        outline: 2px solid #007bff;
+        background-color: #f8f9fa;
+      }
+
+      .numero-col {
+        width: 80px;
+        background-color: #f8f9fa;
+        font-weight: bold;
+      }
+
+      .campo-col {
+        width: 250px;
+        background-color: #f8f9fa;
+      }
+
+      .valor-col {
+        min-width: 300px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 60px;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-family: Arial, sans-serif;
+        resize: vertical;
+      }
+
+      textarea:focus {
+        outline: 2px solid #007bff;
+        border-color: #007bff;
+      }
+
+      .error {
+        text-align: center;
+        padding: 20px;
+        color: #dc3545;
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        border-radius: 4px;
+        margin: 10px 0;
+      }
+      
+      /* Botão Voltar ao Topo */
+      .btn-topo {
+        position: fixed;
+        bottom: 30px;
+        right: 30px;
+        width: 50px;
+        height: 50px;
+        background-color: #007bff;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        cursor: pointer;
+        font-size: 18px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        transition: all 0.3s ease;
+        display: none;
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .btn-topo:hover {
+        background-color: #0056b3;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+      }
+
+      .btn-topo.visible {
+        display: flex;
+      }
+
+      /* Overlay de Loading */
+      .loading-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        display: none;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        flex-direction: column;
+      }
+
+      .loading-content {
+        color: white;
+        padding: 30px 40px;
+        text-align: center;
+        min-width: 200px;
+      }
+
+      .loading-spinner {
+        border: 3px solid #f3f3f3;
+        border-top: 3px solid #007bff;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 1s linear infinite;
+        margin: 0 auto 15px auto;
+      }
+
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+
+      .loading-text {
+        color: white;
+        font-size: 16px;
+        margin: 0;
+      }
+
+      /* Estilo para campos obrigatórios */
+      .campo-obrigatorio::after {
+        content: " *";
+        color: #dc3545;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1 id="tituloPagina">Editar Ficha</h1>
+        <div>
+          <a href="index.html" class="btn-voltar">Voltar</a>
+          <button class="btn-salvar" onclick="validarEstruturarSalvar()">
+            Salvar Alterações
+          </button>
+        </div>
+      </div>
+
+      <!-- NOVO CAMPO DOMÍNIO ADICIONADO AQUI -->
+      <div class="form-group">
+        <label for="dominioFicha" class="campo-obrigatorio">Domínio:</label>
+        <input
+          type="text"
+          id="dominioFicha"
+          placeholder="Digite o domínio da ficha"
+        />
+      </div>
+
+      <div class="form-group">
+        <label for="nomeFicha">Nome da Ficha:</label>
+        <input
+          type="text"
+          id="nomeFicha"
+          placeholder="Digite o nome da ficha"
+          disabled
+        />
+      </div>
+
+      <!-- Overlay de Loading -->
+      <div id="loadingState" class="loading-overlay">
+        <div class="loading-content">
+          <div class="loading-spinner"></div>
+          <p class="loading-text">Carregando ficha...</p>
+        </div>
+      </div>
+
+      <div id="errorState" class="error" style="display: none">
+        <p id="errorMessage">Erro ao carregar ficha.</p>
+      </div>
+
+      <div class="table-container">
+        <table id="tabelaCampos">
+          <thead>
+            <tr>
+              <th class="numero-col">Nº</th>
+              <th class="campo-col">Campo</th>
+              <th class="valor-col">Valor</th>
+            </tr>
+          </thead>
+          <tbody id="tbodyCampos">
+            <!-- Os campos serão carregados dinamicamente -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Botão Voltar ao Topo -->
+    <button class="btn-topo" id="btnTopo" title="Voltar ao topo">
+      <i class="fa-solid fa-chevron-up"></i>
+    </button>
+
+    <!-- SweetAlert2 JS -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
+
+    <script>
+      // Botão Voltar ao Topo
+      const btnTopo = document.getElementById("btnTopo");
+
+      function toggleBotaoTopo() {
+        if (window.pageYOffset > 300) {
+          btnTopo.classList.add("visible");
+        } else {
+          btnTopo.classList.remove("visible");
+        }
+      }
+
+      function voltarAoTopo() {
+        window.scrollTo({
+          top: 0,
+          behavior: "smooth",
+        });
+      }
+
+      // Event Listeners
+      window.addEventListener("scroll", toggleBotaoTopo);
+      btnTopo.addEventListener("click", voltarAoTopo);
+
+      // Adiciona Font Awesome (se não estiver incluído)
+      if (!document.querySelector('link[href*="font-awesome"]')) {
+        const link = document.createElement("link");
+        link.rel = "stylesheet";
+        link.href =
+          "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css";
+        document.head.appendChild(link);
+      }
+
+      // Configuração da API
+      const API_CONFIG = {
+        url: "https://tagliari.ngrok.app",
+        token: "17e721a855359a664c490ebac.69afb23afc3ffcf250bc463d3",
+      };
+
+      // Campos obrigatórios (com seus números)
+      const camposObrigatorios = ["1", "2", "3", "4", "4.1", "5", "7", "7.1", "7.1.1"];
+
+      // Dados fixos para as colunas 1 e 2
+      const dadosFichas = [
+        { numero: "1", campo: "Número" },
+        { numero: "2", campo: "Entrada" },
+        { numero: "3", campo: "Categoria Gramatical" },
+        { numero: "4", campo: "Área" },
+        { numero: "4.1", campo: "Subárea" },
+        { numero: "5", campo: "Gênero" },
+        { numero: "6", campo: "Sinônimo" },
+        { numero: "6.1", campo: "Sintagma Terminológico" },
+        { numero: "7", campo: "Definição" },
+        { numero: "7.1", campo: "Fonte" },
+        { numero: "7.1.1", campo: "Contexto" },
+        { numero: "8", campo: "Remissivas" },
+        { numero: "8.1", campo: "Hiperônimo" },
+        { numero: "8.2", campo: "Hipônimo" },
+        { numero: "8.3", campo: "Conceito Conexo" },
+        { numero: "9", campo: "Variantes" },
+        { numero: "9.1", campo: "Gráfica" },
+        { numero: "9.1.1", campo: "Fonte" },
+        { numero: "9.2", campo: "Lexical" },
+        { numero: "9.2.1", campo: "Fonte" },
+        { numero: "9.3", campo: "Socioprofissional" },
+        { numero: "9.3.1", campo: "Fonte" },
+        { numero: "9.4", campo: "Topoletal" },
+        { numero: "9.4.1", campo: "Fonte" },
+        { numero: "10", campo: "Equivalência" },
+        { numero: "10.1", campo: "Idioma Estrangeiro" },
+        { numero: "10.1.2", campo: "Fonte" },
+      ];
+
+      let fichaId = null;
+      let itensExistentes = [];
+
+      const loadingState = document.getElementById("loadingState");
+      const errorState = document.getElementById("errorState");
+      const errorMessage = document.getElementById("errorMessage");
+      const nomeFichaInput = document.getElementById("nomeFicha");
+      const dominioFichaInput = document.getElementById("dominioFicha");
+
+      // Função para obter o token JWT
+      function getAccessToken() {
+        // Tenta obter de vários locais possíveis
+        const token =
+          localStorage.getItem("x-access-token") ||
+          localStorage.getItem("jwt_token") ||
+          localStorage.getItem("token") ||
+          sessionStorage.getItem("x-access-token") ||
+          // Token de fallback
+          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2RpZ28iOjEsInRpcG8iOiJWIiwibm9tZSI6IlhLRVlTVEkiLCJhcGVsaWRvIjoiWEtFWVNUSSIsImRhdGFfbmFzYyI6IjAwMDAtMDAtMDAiLCJlbmRlcmVjbyI6IkFWRU5JREEgQlJBU0lMIiwibnVtZXJvIjoiMjg0IiwiY29tcGxlbWVudG8iOiJTQUxBIDA3IC8gMTAgIiwiYmFpcnJvIjoiIiwiY2lkYWRlIjoiTUFSSU5Hw4EiLCJlc3RhZG8iOiJQUiIsImNlcCI6Ijg3MDUwLTAwMCIsInRlbGVmb25lIjoiKDQ0KTAzMDI2LTAwMzgiLCJjZWx1bGFyIjoiIiwiZW1haWwiOiIiLCJjcGYiOiIiLCJyZyI6IiIsImNvZF9jaWRhZGVfaWJnZSI6MCwiY29kX3BhaXNfaWJnZSI6IjEwNTgiLCJzZW5oYSI6IiIsImF0aXZvIjoiUyIsImFjZXNzbyI6IlMiLCJzdXBlcnZpc29yIjoiUyIsImNvbWlzc2lvbmFkbyI6IlMiLCJkYXRhX2NhZGFzdHJvIjoiMDAwMC0wMC0wMCIsImRhdGFfYXRpdmFjYW8iOiIwMDAwLTAwLTAwIiwiaWRpb21hX3Npc3RlbWEiOiJQT1JUVUdVRVNfQlJBU0lMIiwiY2VudHJvX2N1c3RvIjowLCJzZXRvciI6MCwidGlwb19wZWRpZG8iOm51bGwsImdydXBvX3VzdWFyaW9faWQiOm51bGwsImRlcGFydGFtZW50b19pZCI6bnVsbCwib2JzZXJ2YWNvZXMiOnsidHlwZSI6IkJ1ZmZlciIsImRhdGEiOltdfSwiZm90b19wZXJmaWwiOm51bGwsImlhdCI6MTc2MDk2ODAyNH0.KW-z9sQV1xz4pL2Sq2xhsuug9epRUlkqoXyji6ljpbk";
+        
+        console.log("Token obtido:", token ? "Presente" : "Ausente");
+        return token;
+      }
+
+      // Headers para as requisições
+      function getHeaders() {
+        const token = getAccessToken();
+        return {
+          "Content-Type": "application/json",
+          "x-access-token": token,
+          "token-api-sax": API_CONFIG.token,
+        };
+      }
+
+      // Funções da API
+      async function api_get_id(endpoint, id, api_url, headers) {
+        try {
+          console.log(`GET: ${api_url}${endpoint}${id}`);
+          const response = await fetch(api_url + endpoint + id, {
+            method: "GET",
+            headers: headers,
+          });
+
+          console.log("Status da resposta:", response.status);
+          
+          if (response.ok) {
+            let json = await response.json();
+            console.log("Resposta GET:", json);
+            return json;
+          } else {
+            const errorText = await response.text();
+            console.error("Erro HTTP GET:", response.status, errorText);
+            return `HTTP error: ${response.status} - ${errorText}`;
+          }
+        } catch (err) {
+          console.error("Erro na requisição GET:", err);
+          throw err;
+        }
+      }
+
+      async function api_put(endpoint, id, body, api_url, headers) {
+        try {
+          console.log(`PUT: ${api_url}${endpoint}${id}`, body);
+          const response = await fetch(api_url + endpoint + id, {
+            method: "PUT",
+            headers: headers,
+            body: body,
+          });
+
+          console.log("Status da resposta PUT:", response.status);
+          
+          if (response.ok) {
+            let json = await response.json();
+            console.log("Resposta PUT:", json);
+            return json;
+          } else {
+            const errorText = await response.text();
+            console.error("Erro HTTP PUT:", response.status, errorText);
+            return `HTTP error: ${response.status} - ${errorText}`;
+          }
+        } catch (err) {
+          console.error("Erro na requisição PUT:", err);
+          throw err;
+        }
+      }
+
+      // Inicializa a página
+      async function inicializarPagina() {
+        console.log("Inicializando página...");
+        
+        // Configura o campo nome da ficha como desabilitado
+        nomeFichaInput.disabled = true;
+        
+        await carregarParametrosURL();
+        if (fichaId) {
+          await carregarFicha();
+        }
+        
+        setupEventListeners();
+      }
+
+      // Configura os event listeners para os campos
+      function setupEventListeners() {
+        // Adiciona um evento para atualizar nome da ficha quando o campo Número for alterado
+        setTimeout(() => {
+          const numeroTextarea = document.querySelector('textarea[data-numero="1"]');
+          if (numeroTextarea) {
+            numeroTextarea.addEventListener('input', function() {
+              atualizarNomeFicha(this.value);
+            });
+          }
+        }, 100);
+      }
+
+      // Atualiza o campo nome da ficha com valor do campo Número
+      function atualizarNomeFicha(valor) {
+        nomeFichaInput.value = valor.trim();
+      }
+
+      // Carrega os parâmetros da URL
+      function carregarParametrosURL() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get("id");
+
+        if (id) {
+          fichaId = id;
+          console.log("ID da ficha:", fichaId);
+          document.getElementById("tituloPagina").textContent =
+            "Editando Ficha";
+        } else {
+          mostrarErro("ID da ficha não especificado");
+        }
+      }
+
+      // Carrega a ficha existente
+      async function carregarFicha() {
+        try {
+          mostrarLoading("Carregando ficha...");
+          esconderErro();
+
+          const headers = getHeaders();
+          console.log("Headers para carregar ficha:", headers);
+
+          // Carregar dados da ficha principal
+          console.log("Carregando dados da ficha principal...");
+          const ficha = await api_get_id(
+            "fichas_termo/",
+            fichaId,
+            API_CONFIG.url,
+            headers
+          );
+
+          if (typeof ficha === "string" && ficha.includes("HTTP error")) {
+            console.error("Erro ao carregar ficha principal:", ficha);
+            throw new Error(ficha);
+          }
+
+          console.log("Ficha carregada:", ficha);
+          nomeFichaInput.value = ficha.nome_ficha || "";
+          dominioFichaInput.value = ficha.dominio || "";
+
+          // Carrega itens da ficha
+          console.log("Carregando itens da ficha...");
+          const itensResponse = await api_get_id(
+            "fichas_termo_itens/ficha/",
+            fichaId,
+            API_CONFIG.url,
+            headers
+          );
+
+          if (
+            typeof itensResponse === "string" &&
+            itensResponse.includes("HTTP error")
+          ) {
+            console.error("Erro ao carregar itens:", itensResponse);
+            throw new Error(itensResponse);
+          }
+
+          console.log("Itens carregados:", itensResponse);
+          
+          // Extrai o array de itens da resposta
+          const itens = extrairItensDaResposta(itensResponse);
+          itensExistentes = itens;
+          console.log("Itens extraídos:", itens);
+
+          renderizarTabelaCampos(itens);
+
+          esconderLoading();
+        } catch (error) {
+          console.error("Erro ao carregar ficha:", error);
+          mostrarErro("Erro ao carregar ficha: " + error.message);
+        }
+      }
+
+      // Função para extrair o array de itens da resposta da API
+      function extrairItensDaResposta(response) {
+        console.log("Extraindo itens da resposta:", response);
+        
+        if (Array.isArray(response)) {
+          return response;
+        }
+
+        if (typeof response === "object" && response !== null) {
+          if (response.data && Array.isArray(response.data)) {
+            return response.data;
+          }
+          if (response.itens && Array.isArray(response.itens)) {
+            return response.itens;
+          }
+          if (response.result && Array.isArray(response.result)) {
+            return response.result;
+          }
+          if (response.items && Array.isArray(response.items)) {
+            return response.items;
+          }
+
+          const arrays = Object.values(response).filter((item) =>
+            Array.isArray(item)
+          );
+          if (arrays.length > 0) {
+            return arrays[0];
+          }
+        }
+
+        return [];
+      }
+
+      // Renderiza a tabela de campos com dados
+      function renderizarTabelaCampos(itens) {
+        const tbody = document.getElementById("tbodyCampos");
+        tbody.innerHTML = "";
+
+        // Cria o mapa dos itens para fácil acesso
+        const itensMap = {};
+        if (Array.isArray(itens)) {
+          itens.forEach((item) => {
+            const key = item.numero_ordem;
+            itensMap[key] = {
+              valor: item.campo_valor,
+              codigo: item.codigo,
+            };
+          });
+        }
+
+        console.log("Mapa de itens:", itensMap);
+
+        dadosFichas.forEach((item, index) => {
+          const tr = document.createElement("tr");
+          const key = item.numero;
+          const itemData = itensMap[key] || { valor: "", codigo: null };
+          const isObrigatorio = camposObrigatorios.includes(item.numero);
+          const classeCampo = isObrigatorio ? "campo-obrigatorio" : "";
+
+          tr.innerHTML = `
+                    <td class="numero-col">${item.numero}</td>
+                    <td class="campo-col ${classeCampo}">${item.campo}</td>
+                    <td class="valor-col">
+                        <textarea 
+                            class="coluna-editavel" 
+                            data-index="${index}"
+                            data-numero="${item.numero}"
+                            data-campo="${item.campo}"
+                            data-codigo="${itemData.codigo || ""}"
+                            data-obrigatorio="${isObrigatorio}"
+                            placeholder="${isObrigatorio ? 'Campo obrigatório *' : 'Digite o valor para ' + item.campo}"
+                            ${item.numero === "1" ? 'oninput="atualizarNomeFicha(this.value)"' : ''}
+                        >${itemData.valor}</textarea>
+                    </td>
+                `;
+          tbody.appendChild(tr);
+        });
+      }
+
+      // Valida os campos obrigatórios
+      function validarCamposObrigatorios() {
+        const camposFaltantes = [];
+        
+        // Validar domínio
+        const dominio = dominioFichaInput.value.trim();
+        if (!dominio) {
+          camposFaltantes.push("Domínio");
+        }
+        
+        // Validar campos da tabela
+        const textareas = document.querySelectorAll('.coluna-editavel[data-obrigatorio="true"]');
+        
+        textareas.forEach(textarea => {
+          const valor = textarea.value.trim();
+          const numero = textarea.dataset.numero;
+          const campo = textarea.dataset.campo;
+          
+          if (!valor) {
+            camposFaltantes.push(`${campo} (Nº ${numero})`);
+          }
+        });
+        
+        return camposFaltantes;
+      }
+
+      // Validar e salvar
+      async function validarEstruturarSalvar() {
+        const camposFaltantes = validarCamposObrigatorios();
+        
+        if (camposFaltantes.length > 0) {
+          // Criar mensagem detalhada
+          let mensagem = "Os seguintes campos obrigatórios devem ser preenchidos antes de salvar:<br><br>";
+          mensagem += camposFaltantes.map(campo => `• ${campo}`).join('<br>');
+          mensagem += "<br><br>Por favor, preencha todos os campos obrigatórios marcados com * vermelho.";
+          
+          Swal.fire({
+            icon: "warning",
+            title: "Campos obrigatórios não preenchidos",
+            html: mensagem,
+            confirmButtonColor: "#dc3545",
+            confirmButtonText: "Entendi"
+          });
+          return;
+        }
+        
+        // Se todos os campos obrigatórios estiverem preenchidos, prosseguir com o salvamento
+        await salvarFicha();
+      }
+
+      // Salvar alterações da ficha
+      async function salvarFicha() {
+        const nomeFicha = nomeFichaInput.value.trim();
+        const dominioFicha = dominioFichaInput.value.trim();
+
+        if (!nomeFicha) {
+          Swal.fire({
+            icon: "warning",
+            title: "Atenção",
+            text: "Por favor, preencha o campo Número (linha 1) para definir o nome da ficha.",
+          });
+          return;
+        }
+
+        if (!dominioFicha) {
+          Swal.fire({
+            icon: "warning",
+            title: "Atenção",
+            text: "Por favor, digite um domínio para a ficha.",
+          });
+          return;
+        }
+
+        if (!fichaId) {
+          Swal.fire({
+            icon: "error",
+            title: "Erro",
+            text: "ID da ficha não encontrado.",
+          });
+          return;
+        }
+
+        try {
+          mostrarLoading("Salvando alterações...");
+          esconderErro();
+
+          const headers = getHeaders();
+          console.log("Headers para salvar:", headers);
+
+          // Atualiza a ficha existente
+          await atualizarFicha(fichaId, nomeFicha, dominioFicha, headers);
+
+          // Atualiza os itens da ficha
+          await atualizarItensFicha(headers);
+
+          esconderLoading();
+
+          await Swal.fire({
+            icon: "success",
+            title: "Sucesso!",
+            text: "Ficha atualizada com sucesso!",
+            timer: 2000,
+            showConfirmButton: false,
+          });
+
+          window.location.href = "index.html";
+        } catch (error) {
+          console.error("Erro ao salvar ficha:", error);
+          esconderLoading();
+          Swal.fire({
+            icon: "error",
+            title: "Erro",
+            text: "Erro ao salvar ficha: " + error.message,
+          });
+        }
+      }
+
+      // Atualiza a ficha principal
+      async function atualizarFicha(id, nome, dominio, headers) {
+        const fichaData = {
+          nome_ficha: nome,
+          dominio: dominio,
+          data_atualizacao: new Date()
+            .toISOString()
+            .slice(0, 19)
+            .replace("T", " "),
+        };
+
+        console.log("Atualizando ficha com dados:", fichaData);
+        
+        const fichaResponse = await api_put(
+          "fichas_termo/",
+          id,
+          JSON.stringify(fichaData),
+          API_CONFIG.url,
+          headers
+        );
+
+        if (
+          typeof fichaResponse === "string" &&
+          fichaResponse.includes("HTTP error")
+        ) {
+          console.error("Erro ao atualizar ficha:", fichaResponse);
+          throw new Error(fichaResponse);
+        }
+        
+        console.log("Ficha atualizada com sucesso:", fichaResponse);
+      }
+
+      // Atualiza os itens da ficha
+      async function atualizarItensFicha(headers) {
+        const textareas = document.querySelectorAll(".coluna-editavel");
+        let itensAtualizados = 0;
+
+        for (let i = 0; i < textareas.length; i++) {
+          const textarea = textareas[i];
+          const campoValor = textarea.value.trim();
+          const numeroOrdem = textarea.dataset.numero;
+          const codigoItem = textarea.dataset.codigo;
+
+          if (codigoItem) {
+            const itemData = {
+              campo_valor: campoValor,
+              numero_ordem: numeroOrdem,
+            };
+
+            console.log(`Atualizando item ${numeroOrdem}:`, itemData);
+            
+            const itemResponse = await api_put(
+              "fichas_termo_itens/",
+              codigoItem,
+              JSON.stringify(itemData),
+              API_CONFIG.url,
+              headers
+            );
+
+            if (
+              typeof itemResponse === "string" &&
+              itemResponse.includes("HTTP error")
+            ) {
+              console.error(
+                `Erro ao atualizar item ${numeroOrdem}:`,
+                itemResponse
+              );
+              throw new Error(
+                `Erro ao atualizar item ${numeroOrdem}: ${itemResponse}`
+              );
+            } else {
+              itensAtualizados++;
+            }
+          }
+        }
+        
+        console.log(`Total de itens atualizados: ${itensAtualizados}`);
+      }
+
+      // Funções para controlar estados da UI
+      function mostrarLoading(mensagem = "Carregando...") {
+        const loadingText = document.querySelector(".loading-text");
+        loadingText.textContent = mensagem;
+        loadingState.style.display = "flex";
+        errorState.style.display = "none";
+      }
+
+      function esconderLoading() {
+        loadingState.style.display = "none";
+      }
+
+      function mostrarErro(mensagem) {
+        esconderLoading();
+        errorState.style.display = "block";
+        errorMessage.textContent = mensagem;
+      }
+
+      function esconderErro() {
+        errorState.style.display = "none";
+      }
+
+      document.addEventListener("DOMContentLoaded", inicializarPagina);
+    </script>
+  </body>
+</html>
