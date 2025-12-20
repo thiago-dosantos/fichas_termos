@@ -328,7 +328,10 @@
     <!-- SweetAlert2 JS -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
 
-    <script>
+    <script type="module">
+      // Import das funções da API
+      import { api_post } from './api/api.js';
+
       // Botão Voltar ao Topo
       const btnTopo = document.getElementById("btnTopo");
 
@@ -359,12 +362,6 @@
           "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css";
         document.head.appendChild(link);
       }
-
-      // Configuração da API
-     const API_CONFIG = {
-        url: 'https://tagliari.ngrok.app',
-        token: '17e721a855359a664c490ebac.69afb23afc3ffcf250bc463d3'
-      };
 
       // Campos obrigatórios (com seus números)
       const camposObrigatorios = ["1", "2", "3", "4", "4.1", "5", "7", "7.1", "7.1.1"];
@@ -407,48 +404,6 @@
       const nomeFichaInput = document.getElementById("nomeFicha");
       const dominioFichaInput = document.getElementById("dominioFicha");
 
-      // Função para obter o token JWT
-      function getAccessToken() {
-        const token =
-          localStorage.getItem("x-access-token") ||
-          localStorage.getItem("jwt_token") ||
-          localStorage.getItem("token") ||
-          sessionStorage.getItem("x-access-token") ||
-          "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjb2RpZ28iOjEsInRpcG8iOiJWIiwibm9tZSI6IlhLRVlTVEkiLCJhcGVsaWRvIjoiWEtFWVNUSSIsImRhdGFfbmFzYyI6IjAwMDAtMDAtMDAiLCJlbmRlcmVjbyI6IkFWRU5JREEgQlJBU0lMIiwibnVtZXJvIjoiMjg0IiwiY29tcGxlbWVudG8iOiJTQUxBIDA3IC8gMTAgIiwiYmFpcnJvIjoiIiwiY2lkYWRlIjoiTUFSSU5Hw4EiLCJlc3RhZG8iOiJQUiIsImNlcCI6Ijg3MDUwLTAwMCIsInRlbGVmb25lIjoiKDQ0KTAzMDI2LTAwMzgiLCJjZWx1bGFyIjoiIiwiZW1haWwiOiIiLCJjcGYiOiIiLCJyZyI6IiIsImNvZF9jaWRhZGVfaWJnZSI6MCwiY29kX3BhaXNfaWJnZSI6IjEwNTgiLCJzZW5oYSI6IiIsImF0aXZvIjoiUyIsImFjZXNzbyI6IlMiLCJzdXBlcnZpc29yIjoiUyIsImNvbWlzc2lvbmFkbyI6IlMiLCJkYXRhX2NhZGFzdHJvIjoiMDAwMC0wMC0wMCIsImRhdGFfYXRpdmFjYW8iOiIwMDAwLTAwLTAwIiwiaWRpb21hX3Npc3RlbWEiOiJQT1JUVUdVRVNfQlJBU0lMIiwiY2VudHJvX2N1c3RvIjowLCJzZXRvciI6MCwidGlwb19wZWRpZG8iOm51bGwsImdydXBvX3VzdWFyaW9faWQiOm51bGwsImRlcGFydGFtZW50b19pZCI6bnVsbCwib2JzZXJ2YWNvZXMiOnsidHlwZSI6IkJ1ZmZlciIsImRhdGEiOltdfSwiZm90b19wZXJmaWwiOm51bGwsImlhdCI6MTc2MDk2ODAyNH0.KW-z9sQV1xz4pL2Sq2xhsuug9epRUlkqoXyji6ljpbk";
-        return token;
-      }
-
-      // Headers para as requisições
-      function getHeaders() {
-        return {
-          "Content-Type": "application/json",
-          "x-access-token": getAccessToken(),
-          "token-api-sax": API_CONFIG.token,
-        };
-      }
-
-      // Funções da API
-      async function api_post(endpoint, body, api_url, headers) {
-        try {
-          const response = await fetch(api_url + endpoint, {
-            method: "post",
-            headers: headers,
-            body: body,
-          });
-
-          if (response.ok) {
-            let json = await response.json();
-            return json;
-          } else {
-            const errorText = await response.text();
-            return `HTTP error: ${response.status} - ${errorText}`;
-          }
-        } catch (err) {
-          console.error("Erro na requisição POST:", err);
-          throw err;
-        }
-      }
-
       // Inicializa a página
       function inicializarPagina() {
         renderizarTabelaCampos();
@@ -460,7 +415,7 @@
         // Preencher domínio com valor padrão
         dominioFichaInput.value = "Transtorno do Espectro Autista (TEA)";
         
-        // Desabilita o  campo nome da ficha
+        // Desabilita o campo nome da ficha
         nomeFichaInput.disabled = true;
         
         // Adicionar evento para atualizar nome da ficha quando o campo Número for preenchido
@@ -585,10 +540,8 @@
           mostrarLoading();
           esconderErro();
 
-          const headers = getHeaders();
-
           // Cria uma nova ficha
-          await criarNovaFicha(nomeFicha, dominioFicha, headers);
+          const fichaId = await criarNovaFicha(nomeFicha, dominioFicha);
 
           await Swal.fire({
             icon: "success",
@@ -612,7 +565,7 @@
       }
 
       // Cria uma nova ficha
-      async function criarNovaFicha(nome, dominio, headers) {
+      async function criarNovaFicha(nome, dominio) {
         // Cria a ficha principal com TODOS os campos obrigatórios
         const fichaData = {
           nome_ficha: nome,
@@ -624,12 +577,7 @@
             .replace("T", " "),
         };
 
-        const fichaResponse = await api_post(
-          "fichas_termo/",
-          JSON.stringify(fichaData),
-          API_CONFIG.url,
-          headers
-        );
+        const fichaResponse = await api_post("fichas_termo/", fichaData);
 
         if (
           typeof fichaResponse === "string" &&
@@ -663,11 +611,13 @@
         }
 
         // Salva os itens da ficha
-        await salvarItensFicha(fichaId, headers);
+        await salvarItensFicha(fichaId);
+        
+        return fichaId;
       }
 
       // Salva os itens da ficha
-      async function salvarItensFicha(fichaId, headers) {
+      async function salvarItensFicha(fichaId) {
         const textareas = document.querySelectorAll(".coluna-editavel");
 
         let itensSalvos = 0;
@@ -692,9 +642,7 @@
 
           const itemResponse = await api_post(
             "fichas_termo_itens/",
-            JSON.stringify(itemData),
-            API_CONFIG.url,
-            headers
+            itemData
           );
 
           if (
@@ -734,6 +682,10 @@
       function esconderErro() {
         errorState.style.display = "none";
       }
+
+      // Torna as funções globais para os event listeners
+      window.atualizarNomeFicha = atualizarNomeFicha;
+      window.validarEstruturarSalvar = validarEstruturarSalvar;
 
       // Inicializa a página quando carregar
       document.addEventListener("DOMContentLoaded", inicializarPagina);
