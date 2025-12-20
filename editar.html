@@ -258,6 +258,35 @@
         color: #dc3545;
         font-weight: bold;
       }
+
+      /* Barra de Progresso */
+      .progress-container {
+        width: 80%;
+        max-width: 400px;
+        margin: 20px auto 0;
+      }
+
+      .progress-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        color: white;
+        font-size: 14px;
+      }
+
+      .progress-bar-container {
+        background: #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        height: 20px;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: #28a745;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
     </style>
   </head>
   <body>
@@ -272,7 +301,6 @@
         </div>
       </div>
 
-      <!-- NOVO CAMPO DOMÍNIO ADICIONADO AQUI -->
       <div class="form-group">
         <label for="dominioFicha" class="campo-obrigatorio">Domínio:</label>
         <input
@@ -297,6 +325,17 @@
         <div class="loading-content">
           <div class="loading-spinner"></div>
           <p class="loading-text">Carregando ficha...</p>
+          
+          <!-- Barra de Progresso -->
+          <div id="progressContainer" class="progress-container" style="display: none;">
+            <div class="progress-header">
+              <span id="progressText">0%</span>
+              <span id="progressCount">0/0</span>
+            </div>
+            <div class="progress-bar-container">
+              <div id="progressBar" class="progress-bar"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -409,6 +448,29 @@
       const errorMessage = document.getElementById("errorMessage");
       const nomeFichaInput = document.getElementById("nomeFicha");
       const dominioFichaInput = document.getElementById("dominioFicha");
+      const progressContainer = document.getElementById("progressContainer");
+      const progressBar = document.getElementById("progressBar");
+      const progressText = document.getElementById("progressText");
+      const progressCount = document.getElementById("progressCount");
+      const loadingText = document.querySelector(".loading-text");
+
+      // Função para mostrar progresso
+      function mostrarProgresso(atual, total) {
+        if (progressContainer && progressBar && progressText && progressCount) {
+          progressContainer.style.display = 'block';
+          const porcentagem = Math.round((atual / total) * 100);
+          progressBar.style.width = `${porcentagem}%`;
+          progressText.textContent = `${porcentagem}%`;
+          progressCount.textContent = `${atual}/${total}`;
+        }
+      }
+
+      // Função para esconder progresso
+      function esconderProgresso() {
+        if (progressContainer) {
+          progressContainer.style.display = 'none';
+        }
+      }
 
       // Inicializa a página
       async function inicializarPagina() {
@@ -494,6 +556,7 @@
           renderizarTabelaCampos(itens);
 
           esconderLoading();
+          esconderProgresso();
         } catch (error) {
           console.error("Erro ao carregar ficha:", error);
           mostrarErro("Erro ao carregar ficha: " + error.message);
@@ -639,10 +702,11 @@
           // Atualiza a ficha existente
           await atualizarFicha(fichaId, nomeFicha, dominioFicha);
 
-          // Atualiza os itens da ficha
+          // Atualiza os itens da ficha EM PARALELO
           await atualizarItensFicha();
 
           esconderLoading();
+          esconderProgresso();
 
           await Swal.fire({
             icon: "success",
@@ -656,6 +720,7 @@
         } catch (error) {
           console.error("Erro ao salvar ficha:", error);
           esconderLoading();
+          esconderProgresso();
           Swal.fire({
             icon: "error",
             title: "Erro",
@@ -694,10 +759,29 @@
         console.log("Ficha atualizada com sucesso:", fichaResponse);
       }
 
-      // Atualiza os itens da ficha
+      // Atualiza os itens da ficha EM PARALELO
       async function atualizarItensFicha() {
         const textareas = document.querySelectorAll(".coluna-editavel");
-        let itensAtualizados = 0;
+        const updatePromises = [];
+        let itensComCodigo = 0;
+
+        // Conta quantos itens têm código (podem ser atualizados)
+        for (let i = 0; i < textareas.length; i++) {
+          const textarea = textareas[i];
+          const codigoItem = textarea.dataset.codigo;
+          if (codigoItem) {
+            itensComCodigo++;
+          }
+        }
+
+        if (itensComCodigo === 0) {
+          console.log("Nenhum item para atualizar");
+          return 0;
+        }
+
+        // Atualiza o texto do loading e mostra progresso
+        loadingText.textContent = "Atualizando itens...";
+        mostrarProgresso(0, itensComCodigo);
 
         for (let i = 0; i < textareas.length; i++) {
           const textarea = textareas[i];
@@ -711,40 +795,60 @@
               numero_ordem: numeroOrdem,
             };
 
-            console.log(`Atualizando item ${numeroOrdem}:`, itemData);
+            console.log(`Preparando atualização do item ${numeroOrdem}`);
             
-            const itemResponse = await api_put(
-              "fichas_termo_itens/",
-              codigoItem,
-              itemData
+            // Adiciona a promise à lista
+            updatePromises.push(
+              api_put("fichas_termo_itens/", codigoItem, itemData)
+                .then(response => {
+                  // Atualiza progresso
+                  const indexAtual = updatePromises.length;
+                  mostrarProgresso(indexAtual, itensComCodigo);
+                  return { success: true, numeroOrdem, response };
+                })
+                .catch(error => {
+                  // Atualiza progresso mesmo em caso de erro
+                  const indexAtual = updatePromises.length;
+                  mostrarProgresso(indexAtual, itensComCodigo);
+                  return { success: false, numeroOrdem, error };
+                })
             );
+          } else {
+            console.log(`Item ${numeroOrdem} não tem código, provavelmente é novo`);
+          }
+        }
 
-            if (
-              typeof itemResponse === "string" &&
-              itemResponse.includes("HTTP error")
-            ) {
-              console.error(
-                `Erro ao atualizar item ${numeroOrdem}:`,
-                itemResponse
-              );
-              throw new Error(
-                `Erro ao atualizar item ${numeroOrdem}: ${itemResponse}`
-              );
-            } else {
-              itensAtualizados++;
-            }
+        // Executa todas as atualizações em paralelo
+        const results = await Promise.all(updatePromises);
+        
+        const sucessos = results.filter(r => r.success);
+        const falhas = results.filter(r => !r.success);
+        
+        console.log(`Total de itens atualizados: ${sucessos.length}/${itensComCodigo}`);
+        
+        if (falhas.length > 0) {
+          console.error("Alguns itens falharam:", falhas);
+          // Não lançamos erro aqui para não interromper todo o processo
+          // Mas podemos mostrar um aviso
+          if (falhas.length > 0) {
+            Swal.fire({
+              icon: "warning",
+              title: "Atenção",
+              text: `${sucessos.length} itens foram salvos, mas ${falhas.length} falharam.`,
+              confirmButtonText: "Entendi"
+            });
           }
         }
         
-        console.log(`Total de itens atualizados: ${itensAtualizados}`);
+        return sucessos.length;
       }
 
       // Funções para controlar estados da UI
       function mostrarLoading(mensagem = "Carregando...") {
-        const loadingText = document.querySelector(".loading-text");
         loadingText.textContent = mensagem;
         loadingState.style.display = "flex";
         errorState.style.display = "none";
+        esconderProgresso();
       }
 
       function esconderLoading() {
@@ -753,6 +857,7 @@
 
       function mostrarErro(mensagem) {
         esconderLoading();
+        esconderProgresso();
         errorState.style.display = "block";
         errorMessage.textContent = mensagem;
       }

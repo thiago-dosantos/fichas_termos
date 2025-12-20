@@ -88,7 +88,8 @@ async function api_post(endpoint, body, is_blob = false) {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`HTTP error: ${response.status} - ${errorText}`);
         }
 
         return await response.json();
@@ -112,7 +113,8 @@ async function api_put(endpoint, id, body) {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`HTTP error: ${response.status} - ${errorText}`);
         }
 
         return await response.json();
@@ -135,7 +137,8 @@ async function api_delete(endpoint, id) {
         });
 
         if (!response.ok) {
-            throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
+            const errorText = await response.text();
+            throw new Error(`HTTP error: ${response.status} - ${errorText}`);
         }
 
         return await response.json();
@@ -155,7 +158,7 @@ async function obterFichaPorId(id) {
     return await api_get_id('fichas_termo/', id);
 }
 
-// Função para obter itens de uma ficha - COM CORREÇÃO PARA O ARRAY
+// Função para obter itens de uma ficha
 async function obterItensFicha(fichaId) {
     const resposta = await api_get_id('fichas_termo_itens/ficha/', fichaId);
     return transformarRespostaEmArray(resposta);
@@ -225,7 +228,7 @@ async function excluirFichaCompleta(codigo) {
     return await api_delete('fichas_termo/', codigo);
 }
 
-// Função para exportar fichas para PDF - COM CORREÇÃO
+// Função para exportar fichas para PDF
 async function exportarFichasParaPDF(fichasIds) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -292,7 +295,7 @@ async function exportarFichasParaPDF(fichasIds) {
     }
 }
 
-// Função para exportar glossário para PDF - COM CORREÇÃO
+// Função para exportar glossário para PDF
 async function exportarGlossarioParaPDF(fichasIds) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
@@ -382,6 +385,60 @@ async function exportarGlossarioParaPDF(fichasIds) {
     }
 }
 
+// Função para excluir múltiplos itens em paralelo
+async function excluirItensBatch(itemIds) {
+    try {
+        // Cria promises para excluir todos os itens em paralelo
+        const deletePromises = itemIds.map(itemId => 
+            api_delete('fichas_termo_itens/', itemId)
+                .then(() => ({ success: true, itemId }))
+                .catch(error => ({ success: false, itemId, error }))
+        );
+        
+        // Executa todas as exclusões em paralelo
+        const results = await Promise.all(deletePromises);
+        
+        const sucessos = results.filter(r => r.success);
+        const falhas = results.filter(r => !r.success);
+        
+        console.log(`Itens excluídos: ${sucessos.length}/${itemIds.length}`);
+        
+        if (falhas.length > 0) {
+            console.warn('Alguns itens falharam ao excluir:', falhas);
+        }
+        
+        return { sucessos, falhas };
+    } catch (error) {
+        console.error('Erro no batch delete:', error);
+        throw error;
+    }
+}
+
+// Função otimizada para excluir ficha e seus itens
+async function excluirFichaCompletaOtimizada(codigo) {
+    try {
+        // Primeiro, obtém todos os itens da ficha
+        const itens = await obterItensFicha(codigo);
+        
+        if (itens && Array.isArray(itens) && itens.length > 0) {
+            // Extrai os IDs dos itens
+            const itemIds = itens
+                .map(item => item.id || item.codigo || item.ID || item.CODIGO)
+                .filter(id => id); // Remove IDs nulos/undefined
+            
+            if (itemIds.length > 0) {
+                // Exclui todos os itens em paralelo
+                await excluirItensBatch(itemIds);
+            }
+        }
+    } catch (error) {
+        console.warn('Erro ao excluir itens da ficha, continuando com exclusão da ficha:', error);
+    }
+    
+    // Depois, excluir a ficha principal
+    return await api_delete('fichas_termo/', codigo);
+}
+
 export {
     obterTodasFichas,
     obterFichaPorId,
@@ -389,6 +446,7 @@ export {
     api_post,
     api_put,
     excluirFichaCompleta,
+    excluirFichaCompletaOtimizada,
     exportarFichasParaPDF,
     exportarGlossarioParaPDF
 };

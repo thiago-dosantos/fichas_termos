@@ -258,6 +258,35 @@
         color: #dc3545;
         font-weight: bold;
       }
+
+      /* Barra de Progresso */
+      .progress-container {
+        width: 80%;
+        max-width: 400px;
+        margin: 20px auto 0;
+      }
+
+      .progress-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+        color: white;
+        font-size: 14px;
+      }
+
+      .progress-bar-container {
+        background: #e0e0e0;
+        border-radius: 10px;
+        overflow: hidden;
+        height: 20px;
+      }
+
+      .progress-bar {
+        height: 100%;
+        background: #28a745;
+        width: 0%;
+        transition: width 0.3s ease;
+      }
     </style>
   </head>
   <body>
@@ -297,6 +326,17 @@
         <div class="loading-content">
           <div class="loading-spinner"></div>
           <p class="loading-text">Salvando ficha...</p>
+          
+          <!-- Barra de Progresso -->
+          <div id="progressContainer" class="progress-container" style="display: none;">
+            <div class="progress-header">
+              <span id="progressText">0%</span>
+              <span id="progressCount">0/0</span>
+            </div>
+            <div class="progress-bar-container">
+              <div id="progressBar" class="progress-bar"></div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -363,7 +403,7 @@
         document.head.appendChild(link);
       }
 
-      // Campos obrigatórios (com seus números)
+      // Campos obrigatórios
       const camposObrigatorios = ["1", "2", "3", "4", "4.1", "5", "7", "7.1", "7.1.1"];
 
       // Dados fixos para as colunas 1 e 2
@@ -403,6 +443,11 @@
       const errorMessage = document.getElementById("errorMessage");
       const nomeFichaInput = document.getElementById("nomeFicha");
       const dominioFichaInput = document.getElementById("dominioFicha");
+      const progressContainer = document.getElementById("progressContainer");
+      const progressBar = document.getElementById("progressBar");
+      const progressText = document.getElementById("progressText");
+      const progressCount = document.getElementById("progressCount");
+      const loadingText = document.querySelector(".loading-text");
 
       // Inicializa a página
       function inicializarPagina() {
@@ -461,6 +506,24 @@
                 `;
           tbody.appendChild(tr);
         });
+      }
+
+      // Função para mostrar progresso
+      function mostrarProgresso(atual, total) {
+        if (progressContainer && progressBar && progressText && progressCount) {
+          progressContainer.style.display = 'block';
+          const porcentagem = Math.round((atual / total) * 100);
+          progressBar.style.width = `${porcentagem}%`;
+          progressText.textContent = `${porcentagem}%`;
+          progressCount.textContent = `${atual}/${total}`;
+        }
+      }
+
+      // Função para esconder progresso
+      function esconderProgresso() {
+        if (progressContainer) {
+          progressContainer.style.display = 'none';
+        }
       }
 
       // Valida os campos obrigatórios
@@ -542,6 +605,10 @@
 
           // Cria uma nova ficha
           const fichaId = await criarNovaFicha(nomeFicha, dominioFicha);
+          
+          // Aguarda o overlay sumir completamente antes de mostrar o Swal de sucesso
+          esconderLoading();
+          esconderProgresso();
 
           await Swal.fire({
             icon: "success",
@@ -554,13 +621,13 @@
           window.location.href = "index.html";
         } catch (error) {
           console.error("Erro ao salvar ficha:", error);
+          esconderLoading();
+          esconderProgresso();
           Swal.fire({
             icon: "error",
             title: "Erro",
             text: "Erro ao salvar ficha: " + error.message,
           });
-        } finally {
-          esconderLoading();
         }
       }
 
@@ -610,18 +677,18 @@
           throw new Error("ID da ficha é nulo ou indefinido");
         }
 
-        // Salva os itens da ficha
+        // Salva os itens da ficha EM PARALELO
         await salvarItensFicha(fichaId);
         
         return fichaId;
       }
 
-      // Salva os itens da ficha
+      // Salva os itens da ficha EM PARALELO
       async function salvarItensFicha(fichaId) {
         const textareas = document.querySelectorAll(".coluna-editavel");
+        const itensData = [];
 
-        let itensSalvos = 0;
-
+        // Primeiro, prepara todos os dados
         for (let i = 0; i < textareas.length; i++) {
           const textarea = textareas[i];
           const campoValor = textarea.value.trim();
@@ -632,41 +699,67 @@
             throw new Error(`ficha_termo_id é nulo para o item ${numeroOrdem}`);
           }
 
-          const itemData = {
+          itensData.push({
             ficha_termo_id: parseInt(fichaId),
             numero_ordem: numeroOrdem,
             campo_nome: campoNome,
             campo_valor: campoValor,
             ordem_exibicao: i + 1,
-          };
-
-          const itemResponse = await api_post(
-            "fichas_termo_itens/",
-            itemData
-          );
-
-          if (
-            typeof itemResponse === "string" &&
-            itemResponse.includes("HTTP error")
-          ) {
-            console.error(`Erro ao salvar item ${numeroOrdem}:`, itemResponse);
-            throw new Error(
-              `Erro ao salvar item ${numeroOrdem}: ${itemResponse}`
-            );
-          } else {
-            itensSalvos++;
-          }
+          });
         }
 
-        console.log(
-          `Total de itens salvos: ${itensSalvos}/${textareas.length}`
+        // Atualiza o texto do loading
+        loadingText.textContent = "Salvando itens...";
+        progressContainer.style.display = 'block';
+        mostrarProgresso(0, itensData.length);
+
+        // Cria promises para salvar em paralelo
+        const promises = itensData.map((itemData, index) => 
+          api_post("fichas_termo_itens/", itemData)
+            .then(response => {
+              // Atualiza progresso a cada item salvo
+              mostrarProgresso(index + 1, itensData.length);
+              return { success: true, response };
+            })
+            .catch(error => {
+              mostrarProgresso(index + 1, itensData.length);
+              return { success: false, error };
+            })
         );
+
+        // Executa todas as promessas em paralelo
+        const results = await Promise.all(promises);
+        
+        // Verifica resultados
+        const sucessos = results.filter(r => r.success);
+        const falhas = results.filter(r => !r.success);
+        
+        console.log(`Total de itens salvos: ${sucessos.length}/${textareas.length}`);
+        
+        // Esconde o progresso após conclusão
+        esconderProgresso();
+        
+        if (falhas.length > 0) {
+          console.error("Alguns itens falharam:", falhas);
+          if (falhas.length > 0) {
+            Swal.fire({
+              icon: "warning",
+              title: "Atenção",
+              text: `${sucessos.length} itens foram salvos, mas ${falhas.length} falharam.`,
+              confirmButtonText: "Entendi"
+            });
+          }
+        }
+        
+        return sucessos.length;
       }
 
       // Funções para controlar estados da UI
       function mostrarLoading() {
+        loadingText.textContent = "Salvando ficha...";
         loadingState.style.display = "flex";
         errorState.style.display = "none";
+        esconderProgresso();
       }
 
       function esconderLoading() {

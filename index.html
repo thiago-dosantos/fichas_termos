@@ -190,6 +190,101 @@
             border-radius: 4px;
             margin: 10px 0;
         }
+
+        /* Estilo para botão de exclusão múltipla */
+        .btn-excluir-multiplas {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+            margin-left: 10px;
+        }
+
+        .btn-excluir-multiplas:hover {
+            background-color: #c82333;
+        }
+
+        .btn-excluir-multiplas:disabled {
+            background-color: #6c757d;
+            cursor: not-allowed;
+        }
+
+        /* Overlay de Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.7);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            flex-direction: column;
+        }
+
+        .loading-content {
+            color: white;
+            padding: 30px 40px;
+            text-align: center;
+            min-width: 300px;
+            border-radius: 10px;
+        }
+
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007bff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            color: white;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+
+        /* Barra de Progresso */
+        .progress-container {
+            width: 100%;
+            max-width: 300px;
+            margin: 20px auto 0;
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            color: white;
+            font-size: 14px;
+        }
+
+        .progress-bar-container {
+            background: #e0e0e0;
+            border-radius: 10px;
+            overflow: hidden;
+            height: 20px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: #28a745;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
     </style>
 </head>
 <body>
@@ -199,7 +294,27 @@
             <div class="btn-group">
                 <button id="btnExportar" class="btn-exportar" disabled>Exportar Ficha</button>
                 <button id="btnExportarGlossario" class="btn-exportar-glossario" disabled>Exportar Glossário</button>
+                <button id="btnExcluirMultiplas" class="btn-excluir-multiplas" disabled>Excluir Selecionadas</button>
                 <a href="novo.html" class="btn-novo">Nova Ficha</a>
+            </div>
+        </div>
+
+        <!-- Overlay de Loading para exclusões -->
+        <div id="loadingOverlay" class="loading-overlay">
+            <div class="loading-content">
+                <div class="loading-spinner"></div>
+                <p class="loading-text" id="loadingText">Excluindo ficha...</p>
+                
+                <!-- Barra de Progresso -->
+                <div id="progressContainer" class="progress-container" style="display: none;">
+                    <div class="progress-header">
+                        <span id="progressText">0%</span>
+                        <span id="progressCount">0/0</span>
+                    </div>
+                    <div class="progress-bar-container">
+                        <div id="progressBar" class="progress-bar"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -239,7 +354,7 @@
         // Import das funções da API
         import {
             obterTodasFichas,
-            excluirFichaCompleta,
+            excluirFichaCompletaOtimizada,
             exportarFichasParaPDF,
             exportarGlossarioParaPDF
         } from './api/api.js';
@@ -253,11 +368,18 @@
         const selectAll = document.getElementById('selectAll');
         const btnExportar = document.getElementById('btnExportar');
         const btnExportarGlossario = document.getElementById('btnExportarGlossario');
+        const btnExcluirMultiplas = document.getElementById('btnExcluirMultiplas');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingText = document.getElementById('loadingText');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
+        const progressCount = document.getElementById('progressCount');
 
         // Inicializa a tabela
         async function inicializarTabela() {
             await carregarFichas();
-            atualizarTodosBotoesExportar();
+            atualizarTodosBotoes();
         }
 
         // Carrega as fichas da API
@@ -309,18 +431,39 @@
 
                 tr.innerHTML = `
                     <td class="checkbox-cell">
-                        <input type="checkbox" class="row-checkbox" data-id="${fichaId}" onchange="atualizarTodosBotoesExportar()">
+                        <input type="checkbox" class="row-checkbox" data-id="${fichaId}" data-nome="${ficha.nome_ficha || ficha.nome || 'Sem nome'}" onchange="atualizarTodosBotoes()">
                     </td>
                     <td>${fichaId || 'N/A'}</td>
                     <td>${ficha.nome_ficha || ficha.nome || 'Sem nome'}</td>
                     <td>${dataCriacao}</td>
                     <td class="acoes-cell">
                         <a href="editar.html?id=${fichaId}" class="btn-acao btn-editar">Editar</a>
-                        <button class="btn-acao btn-excluir" onclick="confirmarExclusaoFicha('${fichaId}')">Excluir</button>
+                        <button class="btn-acao btn-excluir" onclick="confirmarExclusaoFicha('${fichaId}', '${ficha.nome_ficha || ficha.nome || 'Ficha'}')">Excluir</button>
                     </td>
                 `;
                 tabelaBody.appendChild(tr);
             });
+        }
+
+        // Função para mostrar progresso
+        function mostrarProgresso(atual, total) {
+            if (progressContainer && progressBar && progressText && progressCount) {
+                progressContainer.style.display = 'block';
+                const porcentagem = Math.round((atual / total) * 100);
+                progressBar.style.width = `${porcentagem}%`;
+                progressText.textContent = `${porcentagem}%`;
+                progressCount.textContent = `${atual}/${total}`;
+            }
+        }
+
+        // Função para esconder progresso
+        function esconderProgresso() {
+            if (progressContainer) {
+                progressContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+                progressText.textContent = '0%';
+                progressCount.textContent = '0/0';
+            }
         }
 
         // Atualiza o estado do botão exportar
@@ -335,10 +478,17 @@
             btnExportarGlossario.disabled = checkboxesSelecionados.length === 0;
         }
 
-        // Atualiza todos os botões de exportação
-        function atualizarTodosBotoesExportar() {
+        // Atualiza o estado do botão excluir múltiplas
+        function atualizarBotaoExcluirMultiplas() {
+            const checkboxesSelecionados = document.querySelectorAll('.row-checkbox:checked');
+            btnExcluirMultiplas.disabled = checkboxesSelecionados.length === 0;
+        }
+
+        // Atualiza todos os botões
+        function atualizarTodosBotoes() {
             atualizarBotaoExportar();
             atualizarBotaoExportarGlossario();
+            atualizarBotaoExcluirMultiplas();
         }
 
         // Exporta as fichas selecionadas para PDF
@@ -433,11 +583,11 @@
             }
         }
 
-        // Confirma e exclui a ficha
-        async function confirmarExclusaoFicha(codigo) {
+        // Confirma e exclui a ficha (única)
+        async function confirmarExclusaoFicha(codigo, nomeFicha) {
             const result = await Swal.fire({
                 title: 'Tem certeza?',
-                text: "Esta ação irá excluir a ficha e todos os seus itens! Esta ação não pode ser revertida.",
+                html: `Esta ação irá excluir a ficha <strong>"${nomeFicha}"</strong> e todos os seus itens!<br><br>Esta ação não pode ser revertida.`,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
@@ -448,35 +598,157 @@
             });
 
             if (result.isConfirmed) {
-                try {
-                    Swal.fire({
-                        title: 'Excluindo...',
-                        text: 'Removendo ficha e seus itens',
-                        allowOutsideClick: false,
-                        didOpen: () => Swal.showLoading()
-                    });
+                await excluirFichaComCodigo(codigo, nomeFicha);
+            }
+        }
 
-                    await excluirFichaCompleta(codigo);
+        // Confirma e exclui múltiplas fichas
+        async function confirmarExclusaoMultiplasFichas() {
+            const checkboxesSelecionados = document.querySelectorAll('.row-checkbox:checked');
+            if (checkboxesSelecionados.length === 0) {
+                await Swal.fire({
+                    title: 'Nenhuma ficha selecionada',
+                    text: 'Selecione pelo menos uma ficha para excluir.',
+                    icon: 'warning',
+                    confirmButtonColor: '#007bff'
+                });
+                return;
+            }
 
-                    Swal.close();
+            const fichasSelecionadas = Array.from(checkboxesSelecionados).map(checkbox => ({
+                id: checkbox.getAttribute('data-id'),
+                nome: checkbox.getAttribute('data-nome')
+            }));
+
+            const listaNomes = fichasSelecionadas.map(f => `• ${f.nome}`).join('<br>');
+            
+            const result = await Swal.fire({
+                title: 'Tem certeza?',
+                html: `Esta ação irá excluir <strong>${fichasSelecionadas.length} ficha(s)</strong> e todos os seus itens!<br><br>
+                      <strong>Fichas selecionadas:</strong><br>
+                      ${listaNomes}<br><br>
+                      Esta ação não pode ser revertida.`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: `Sim, excluir ${fichasSelecionadas.length} ficha(s)!`,
+                cancelButtonText: 'Cancelar',
+                reverseButtons: true,
+                width: '600px'
+            });
+
+            if (result.isConfirmed) {
+                await excluirMultiplasFichas(fichasSelecionadas);
+            }
+        }
+
+        // Exclui uma ficha específica
+        async function excluirFichaComCodigo(codigo, nomeFicha) {
+            try {
+                // Mostra overlay de loading
+                loadingText.textContent = `Excluindo ficha: ${nomeFicha}`;
+                loadingOverlay.style.display = 'flex';
+                esconderProgresso();
+
+                await excluirFichaCompletaOtimizada(codigo);
+
+                loadingOverlay.style.display = 'none';
+
+                await Swal.fire({
+                    title: 'Excluído!',
+                    text: `A ficha "${nomeFicha}" e todos os seus itens foram excluídos com sucesso.`,
+                    icon: 'success',
+                    confirmButtonColor: '#28a745'
+                });
+
+                await carregarFichas();
+            } catch (error) {
+                console.error('Erro ao excluir ficha:', error);
+                loadingOverlay.style.display = 'none';
+                await Swal.fire({
+                    title: 'Erro!',
+                    text: `Erro ao excluir ficha "${nomeFicha}": ${error.message}`,
+                    icon: 'error',
+                    confirmButtonColor: '#d33'
+                });
+            }
+        }
+
+        // Exclui múltiplas fichas em paralelo
+        async function excluirMultiplasFichas(fichas) {
+            try {
+                // Mostra overlay de loading com progresso
+                loadingText.textContent = `Excluindo ${fichas.length} ficha(s)...`;
+                loadingOverlay.style.display = 'flex';
+                mostrarProgresso(0, fichas.length);
+
+                let sucessos = 0;
+                let falhas = 0;
+                const resultados = [];
+
+                // Cria promises para excluir todas as fichas em paralelo
+                const promises = fichas.map((ficha, index) => 
+                    excluirFichaCompletaOtimizada(ficha.id)
+                        .then(() => {
+                            sucessos++;
+                            mostrarProgresso(sucessos + falhas, fichas.length);
+                            resultados.push({ success: true, ficha });
+                            return { success: true, ficha };
+                        })
+                        .catch(error => {
+                            falhas++;
+                            mostrarProgresso(sucessos + falhas, fichas.length);
+                            resultados.push({ success: false, ficha, error });
+                            return { success: false, ficha, error };
+                        })
+                );
+
+                // Executa todas as exclusões em paralelo
+                await Promise.all(promises);
+
+                loadingOverlay.style.display = 'none';
+                esconderProgresso();
+
+                // Mostra resultado
+                if (falhas === 0) {
                     await Swal.fire({
-                        title: 'Excluído!',
-                        text: 'A ficha e todos os seus itens foram excluídos com sucesso.',
+                        title: 'Sucesso!',
+                        html: `<strong>${sucessos} ficha(s)</strong> excluída(s) com sucesso.`,
                         icon: 'success',
                         confirmButtonColor: '#28a745'
                     });
-
-                    await carregarFichas();
-                } catch (error) {
-                    console.error('Erro ao excluir ficha:', error);
-                    Swal.close();
+                } else if (sucessos > 0) {
+                    const fichasFalhas = resultados.filter(r => !r.success).map(r => r.ficha.nome);
+                    await Swal.fire({
+                        title: 'Resultado parcial',
+                        html: `<strong>${sucessos} ficha(s)</strong> excluída(s) com sucesso.<br>
+                              <strong>${falhas} ficha(s)</strong> falharam:<br>
+                              ${fichasFalhas.map(nome => `• ${nome}`).join('<br>')}`,
+                        icon: 'warning',
+                        confirmButtonColor: '#ffc107'
+                    });
+                } else {
                     await Swal.fire({
                         title: 'Erro!',
-                        text: 'Erro ao excluir ficha: ' + error.message,
+                        text: 'Todas as fichas falharam ao excluir.',
                         icon: 'error',
                         confirmButtonColor: '#d33'
                     });
                 }
+
+                // Recarrega a tabela
+                await carregarFichas();
+            } catch (error) {
+                console.error('Erro ao excluir múltiplas fichas:', error);
+                loadingOverlay.style.display = 'none';
+                esconderProgresso();
+                await Swal.fire({
+                    title: 'Erro!',
+                    text: 'Erro ao excluir fichas: ' + error.message,
+                    icon: 'error',
+                    confirmButtonColor: '#d33'
+                });
             }
         }
 
@@ -516,18 +788,20 @@
             checkboxes.forEach(checkbox => {
                 checkbox.checked = selectAll.checked;
             });
-            atualizarTodosBotoesExportar();
+            atualizarTodosBotoes();
         });
 
         // Adiciona os event listener aos botões
         btnExportar.addEventListener('click', handleExportarFichasParaPDF);
         btnExportarGlossario.addEventListener('click', handleExportarGlossarioParaPDF);
+        btnExcluirMultiplas.addEventListener('click', confirmarExclusaoMultiplasFichas);
 
         // Torna as funções globais para os event listeners
         window.confirmarExclusaoFicha = confirmarExclusaoFicha;
         window.atualizarBotaoExportar = atualizarBotaoExportar;
         window.atualizarBotaoExportarGlossario = atualizarBotaoExportarGlossario;
-        window.atualizarTodosBotoesExportar = atualizarTodosBotoesExportar;
+        window.atualizarBotaoExcluirMultiplas = atualizarBotaoExcluirMultiplas;
+        window.atualizarTodosBotoes = atualizarTodosBotoes;
 
         // Inicializa a aplicação
         document.addEventListener('DOMContentLoaded', inicializarTabela);
