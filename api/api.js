@@ -301,87 +301,159 @@ async function exportarGlossarioParaPDF(fichasIds) {
     const doc = new jsPDF();
     const margin = 10;
     let currentY = margin;
-    let fichasProcessadas = 0;
 
-    for (const fichaId of fichasIds) {
+    // Título do glossário
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    const glossarioText = "Glossário";
+    const glossarioWidth = doc.getTextWidth(glossarioText);
+    const glossarioX = (doc.internal.pageSize.getWidth() - glossarioWidth) / 2;
+    doc.text(glossarioText, glossarioX, currentY);
+    currentY += 15;
+
+    // Configurar fonte
+    doc.setFontSize(11);
+    const pageWidth = doc.internal.pageSize.getWidth() - 2 * margin;
+
+    // Processar cada ficha individualmente
+    for (let fichaIndex = 0; fichaIndex < fichasIds.length; fichaIndex++) {
+        const fichaId = fichasIds[fichaIndex];
+        
         try {
-            const ficha = await obterFichaPorId(fichaId);
             const itens = await obterItensFicha(fichaId);
 
-            if (!Array.isArray(itens)) {
-                console.warn(`Itens da ficha ${fichaId} não é um array para glossário:`, itens);
+            if (!Array.isArray(itens) || itens.length === 0) {
+                console.warn(`Ficha ${fichaId} não tem itens válidos para glossário:`, itens);
                 continue;
             }
 
-            if (fichasProcessadas > 0) {
-                doc.addPage();
-                currentY = margin;
+            // Ordenar os itens por ordem numérica se existir
+            let itensOrdenados = [...itens];
+            if (itensOrdenados[0] && (itensOrdenados[0].numero_ordem || itensOrdenados[0].ordem || itensOrdenados[0].numero)) {
+                itensOrdenados.sort((a, b) => {
+                    const ordemA = parseInt(a.numero_ordem || a.ordem || a.numero || 0);
+                    const ordemB = parseInt(b.numero_ordem || b.ordem || b.numero || 0);
+                    return ordemA - ordemB;
+                });
             }
 
-            const dominio = ficha.dominio || 'Domínio não informado';
-            const nomeFicha = ficha.nome_ficha || ficha.nome || 'Sem nome';
-
-            doc.setFontSize(12);
-            doc.setFont('helvetica', 'normal');
-            doc.text(`Domínio: ${dominio}`, margin, currentY);
-            currentY += 8;
-            doc.text(`Ficha: ${nomeFicha}`, margin, currentY);
-            currentY += 15;
-
-            doc.setFontSize(14);
-            doc.setFont('helvetica', 'bold');
-            const glossarioText = "Glossário";
-            const glossarioWidth = doc.getTextWidth(glossarioText);
-            const glossarioX = (doc.internal.pageSize.getWidth() - glossarioWidth) / 2;
-            doc.text(glossarioText, glossarioX, currentY);
-            currentY += 15;
-
-            // Filtra e processa os valores
-            let valores = [];
-            if (Array.isArray(itens) && itens.length > 0) {
-                valores = itens
-                    .filter(item => item && item.campo_valor && item.campo_valor.toString().trim() !== '')
-                    .map(item => item.campo_valor.toString().trim())
-                    .filter((valor, index, self) => self.indexOf(valor) === index);
-            }
-
-            if (valores.length > 0) {
-                const textoGlossario = valores.join('. ');
-                doc.setFontSize(11);
-                doc.setFont('helvetica', 'normal');
-                const lines = doc.splitTextToSize(textoGlossario, doc.internal.pageSize.getWidth() - 40);
-                
-                for (const line of lines) {
-                    if (currentY > doc.internal.pageSize.getHeight() - margin) {
-                        doc.addPage();
-                        currentY = margin;
+            // Separar itens 2 (ordem 2) dos demais
+            const itens2 = [];
+            const outrosItens = [];
+            
+            for (let i = 0; i < itensOrdenados.length; i++) {
+                const item = itensOrdenados[i];
+                if (item && item.campo_valor && item.campo_valor.toString().trim() !== '') {
+                    const valor = item.campo_valor.toString().trim();
+                    const ordem = parseInt(item.numero_ordem || item.ordem || item.numero || (i + 1));
+                    
+                    if (ordem === 2) {
+                        itens2.push(valor);
+                    } else if (ordem > 2) {
+                        outrosItens.push(valor);
                     }
-                    doc.text(line, margin, currentY);
-                    currentY += 7;
                 }
-            } else {
-                doc.setFontSize(11);
-                doc.setFont('helvetica', 'italic');
-                const semValoresText = "Nenhum valor encontrado para glossário";
-                const semValoresWidth = doc.getTextWidth(semValoresText);
-                const semValoresX = (doc.internal.pageSize.getWidth() - semValoresWidth) / 2;
-                doc.text(semValoresText, semValoresX, currentY);
-                currentY += 10;
             }
 
-            fichasProcessadas++;
-            currentY += 10; // Espaço entre fichas
+            // Se não tem itens válidos, pular esta ficha
+            if (itens2.length === 0 && outrosItens.length === 0) {
+                continue;
+            }
+
+            // Construir texto da ficha atual
+            let textoFicha = "";
+            
+            // Adicionar item(s) 2 em negrito
+            if (itens2.length > 0) {
+                textoFicha += itens2.join(". ");
+            }
+            
+            // Adicionar outros itens
+            if (outrosItens.length > 0) {
+                if (textoFicha !== "") {
+                    textoFicha += ". ";
+                }
+                textoFicha += outrosItens.join(". ");
+            }
+            
+            // Adicionar ponto final se não tiver
+            if (textoFicha !== "" && !textoFicha.endsWith('.')) {
+                textoFicha += ".";
+            }
+
+            // Separar texto em linhas
+            const lines = doc.splitTextToSize(textoFicha, pageWidth);
+            
+            // Processar cada linha da ficha atual
+            for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+                const line = lines[lineIndex];
+                
+                // Verificar se precisa de nova página
+                if (currentY > doc.internal.pageSize.getHeight() - margin) {
+                    doc.addPage();
+                    currentY = margin;
+                }
+                
+                let currentX = margin;
+                let linhaRestante = line;
+                
+                // Processar formatação (negrito para itens 2)
+                while (linhaRestante.length > 0) {
+                    let encontrouNegrito = false;
+                    
+                    // Procurar por itens 2 nesta linha
+                    for (const item2 of itens2) {
+                        if (item2 && linhaRestante.includes(item2)) {
+                            const posicao = linhaRestante.indexOf(item2);
+                            
+                            // Escrever texto antes do item 2 (normal)
+                            if (posicao > 0) {
+                                const antes = linhaRestante.substring(0, posicao);
+                                doc.setFont('helvetica', 'normal');
+                                doc.text(antes, currentX, currentY);
+                                currentX += doc.getTextWidth(antes);
+                            }
+                            
+                            // Escrever item 2 em negrito
+                            doc.setFont('helvetica', 'bold');
+                            doc.text(item2, currentX, currentY);
+                            currentX += doc.getTextWidth(item2);
+                            
+                            // Atualizar linha restante
+                            linhaRestante = linhaRestante.substring(posicao + item2.length);
+                            encontrouNegrito = true;
+                            break;
+                        }
+                    }
+                    
+                    // Se não encontrou mais texto em negrito nesta linha
+                    if (!encontrouNegrito) {
+                        doc.setFont('helvetica', 'normal');
+                        doc.text(linhaRestante, currentX, currentY);
+                        break;
+                    }
+                }
+                
+                currentY += 7;
+            }
+            
+            // Adicionar espaço entre fichas (pular uma linha)
+            if (fichaIndex < fichasIds.length - 1) {
+                currentY += 7; // Uma linha em branco entre fichas
+            }
+
         } catch (error) {
             console.error(`Erro ao processar ficha ${fichaId} para glossário:`, error);
             continue;
         }
     }
 
-    if (fichasProcessadas > 0) {
+    // Verificar se alguma ficha foi processada
+    if (currentY > margin + 15) { // Mais do que apenas o título
         doc.save(`glossario_fichas_${new Date().toISOString().split('T')[0]}.pdf`);
         return true;
     } else {
-        throw new Error('Nenhuma ficha foi processada para o glossário');
+        throw new Error('Nenhum valor encontrado para o glossário');
     }
 }
 

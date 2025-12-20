@@ -419,6 +419,13 @@
                 return;
             }
 
+            // ORDENAR AS FICHAS POR ID (do menor para o maior)
+            fichas.sort((a, b) => {
+                const idA = a.id || a.codigo || a.ID || a.CODIGO || 0;
+                const idB = b.id || b.codigo || b.ID || b.CODIGO || 0;
+                return idA - idB;
+            });
+
             esconderEstados();
             tabelaBody.innerHTML = '';
 
